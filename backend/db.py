@@ -1,9 +1,14 @@
+import json
 import os
 import sqlite3
+import time
 
 from flask import current_app, g
 
+from data.hardware import HARDWARE
+
 SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
+SCHEMA_VERSION = 2  # keep in sync with PRAGMA user_version in schema.sql
 
 
 def _connect(path):
@@ -27,14 +32,45 @@ def close_db(_exc=None):
         conn.close()
 
 
+def _backup_if_outdated(path):
+    """Dev stage: an older schema is moved aside and a fresh database is created."""
+    if not os.path.exists(path):
+        return
+    conn = _connect(path)
+    try:
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        conn.close()
+    if version < SCHEMA_VERSION:
+        backup = "%s.bak-%d" % (path, int(time.time()))
+        os.replace(path, backup)
+        print("Old database schema (v%d) moved to %s" % (version, backup))
+
+
+def seed_hardware(conn):
+    """Insert or update the hardware catalog from data/hardware.py (tunable file)."""
+    for hw in HARDWARE:
+        conn.execute(
+            "INSERT INTO hardware_types (code, category, name, u_height, power_w, heat_w, ports, price_cents, attrs_json)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(code) DO UPDATE SET category = excluded.category, name = excluded.name,"
+            " u_height = excluded.u_height, power_w = excluded.power_w, heat_w = excluded.heat_w,"
+            " ports = excluded.ports, price_cents = excluded.price_cents, attrs_json = excluded.attrs_json",
+            (hw["code"], hw["category"], hw["name"], hw["u_height"], hw["power_w"], hw["heat_w"],
+             hw["ports"], hw["price_cents"], json.dumps(hw["attrs"])),
+        )
+
+
 def init_db(app):
-    """Create the database file and all tables (idempotent)."""
+    """Create the database file and all tables (idempotent) and seed the catalog."""
     path = app.config["DATABASE"]
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    _backup_if_outdated(path)
     conn = _connect(path)
     try:
         with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
             conn.executescript(f.read())
+        seed_hardware(conn)
     finally:
         conn.close()
     app.teardown_appcontext(close_db)

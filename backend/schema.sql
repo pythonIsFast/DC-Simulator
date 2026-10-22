@@ -1,5 +1,8 @@
--- Datacenter Tycoon schema. Money is stored as integer cents.
+-- Datacenter Tycoon schema (version 2). Money is stored as integer cents.
 -- All game data hangs off a world (world_id) to allow multiplayer later.
+-- Bump SCHEMA_VERSION in db.py when changing this file (dev DBs are backed up and recreated).
+
+PRAGMA user_version = 2;
 
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,15 +27,17 @@ CREATE INDEX IF NOT EXISTS idx_worlds_owner ON worlds(owner_user_id);
 
 -- Player and AI companies. user_id IS NULL means AI rival.
 CREATE TABLE IF NOT EXISTS companies (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    world_id    INTEGER NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
-    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    name        TEXT NOT NULL,
-    is_ai       INTEGER NOT NULL DEFAULT 0,
-    ai_strategy TEXT,                                    -- e.g. aggressive | balanced | frugal
-    color       TEXT NOT NULL DEFAULT '#4ea1ff',
-    cash_cents  INTEGER NOT NULL,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id           INTEGER NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+    user_id            INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name               TEXT NOT NULL,
+    is_ai              INTEGER NOT NULL DEFAULT 0,
+    ai_strategy        TEXT,                             -- aggressive | balanced | frugal
+    color              TEXT NOT NULL DEFAULT '#4ea1ff',
+    cash_cents         INTEGER NOT NULL,
+    last_revenue_cents INTEGER NOT NULL DEFAULT 0,       -- of the latest tick
+    last_expense_cents INTEGER NOT NULL DEFAULT 0,       -- of the latest tick
+    created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (world_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_companies_world ON companies(world_id);
@@ -47,9 +52,8 @@ CREATE TABLE IF NOT EXISTS regions (
     lon                   REAL NOT NULL,
     demand_index          REAL NOT NULL,                 -- relative customer demand
     power_price_cents_kwh REAL NOT NULL,
-    avg_temp_c            REAL NOT NULL,                 -- drives cooling cost
+    avg_temp_c            REAL NOT NULL,                 -- drives cooling overhead (PUE)
     land_cost_index       REAL NOT NULL,
-    unlocked              INTEGER NOT NULL DEFAULT 0,    -- region available for building
     UNIQUE (world_id, code)
 );
 
@@ -59,18 +63,33 @@ CREATE TABLE IF NOT EXISTS datacenters (
     company_id        INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     region_id         INTEGER NOT NULL REFERENCES regions(id),
     name              TEXT NOT NULL,
-    power_capacity_kw REAL NOT NULL,
-    cooling_kw        REAL NOT NULL,
+    power_capacity_kw REAL NOT NULL,                     -- base grid connection
+    cooling_kw        REAL NOT NULL,                     -- base room cooling
+    build_cost_cents  INTEGER NOT NULL DEFAULT 0,
     built_tick        INTEGER NOT NULL,
-    status            TEXT NOT NULL DEFAULT 'active'
+    status            TEXT NOT NULL DEFAULT 'active',
+    -- runtime values written by the simulation
+    perf              REAL NOT NULL DEFAULT 1,           -- 0..1 thermal/power throttle
+    heat_kw           REAL NOT NULL DEFAULT 0,
+    cooling_cap_kw    REAL NOT NULL DEFAULT 0,
+    facility_kw       REAL NOT NULL DEFAULT 0,           -- IT power incl. cooling overhead
+    util              REAL NOT NULL DEFAULT 0            -- 0..1 sold share of capacity
 );
 CREATE INDEX IF NOT EXISTS idx_dc_company ON datacenters(company_id);
 
--- Global hardware catalog, seeded from a tunable data file (Phase 3).
+-- Datacenter-level equipment: aggregation switches, cooling units, power feeds.
+CREATE TABLE IF NOT EXISTS dc_equipment (
+    datacenter_id    INTEGER NOT NULL REFERENCES datacenters(id) ON DELETE CASCADE,
+    hardware_type_id INTEGER NOT NULL REFERENCES hardware_types(id),
+    qty              INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (datacenter_id, hardware_type_id)
+);
+
+-- Global hardware catalog, seeded from data/hardware.py on startup.
 CREATE TABLE IF NOT EXISTS hardware_types (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     code        TEXT NOT NULL UNIQUE,
-    category    TEXT NOT NULL,   -- server_cpu | server_storage | server_gpu | switch_tor | switch_agg | pdu | ups | patch_panel | cable_mgmt | blank
+    category    TEXT NOT NULL,
     name        TEXT NOT NULL,
     u_height    INTEGER NOT NULL,
     power_w     REAL NOT NULL DEFAULT 0,
@@ -81,12 +100,20 @@ CREATE TABLE IF NOT EXISTS hardware_types (
 );
 
 CREATE TABLE IF NOT EXISTS racks (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    datacenter_id INTEGER NOT NULL REFERENCES datacenters(id) ON DELETE CASCADE,
-    name          TEXT NOT NULL,
-    u_total       INTEGER NOT NULL DEFAULT 42,
-    slot          INTEGER NOT NULL DEFAULT 0,            -- position in the room
-    created_tick  INTEGER NOT NULL
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    datacenter_id    INTEGER NOT NULL REFERENCES datacenters(id) ON DELETE CASCADE,
+    name             TEXT NOT NULL,
+    u_total          INTEGER NOT NULL DEFAULT 42,
+    slot             INTEGER NOT NULL DEFAULT 0,         -- position in the room
+    created_tick     INTEGER NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'ok',         -- ok | down (timed) | tripped (breaker)
+    down_until_tick  INTEGER,
+    down_reason      TEXT,
+    -- runtime values written by the simulation
+    online           INTEGER NOT NULL DEFAULT 0,
+    offline_reason   TEXT,
+    load_w           REAL NOT NULL DEFAULT 0,
+    heat_w           REAL NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_racks_dc ON racks(datacenter_id);
 
@@ -94,7 +121,7 @@ CREATE TABLE IF NOT EXISTS rack_items (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     rack_id          INTEGER NOT NULL REFERENCES racks(id) ON DELETE CASCADE,
     hardware_type_id INTEGER NOT NULL REFERENCES hardware_types(id),
-    u_start          INTEGER NOT NULL,                   -- lowest occupied U (1-based)
+    u_start          INTEGER NOT NULL,                   -- lowest occupied U (1 = bottom)
     meta_json        TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_rack_items_rack ON rack_items(rack_id);
@@ -103,7 +130,7 @@ CREATE TABLE IF NOT EXISTS rack_templates (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     name        TEXT NOT NULL,
-    layout_json TEXT NOT NULL,
+    layout_json TEXT NOT NULL,                           -- [{"code": ..., "u_start": ...}]
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -112,19 +139,27 @@ CREATE TABLE IF NOT EXISTS contracts (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,
     world_id               INTEGER NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
     company_id             INTEGER REFERENCES companies(id) ON DELETE SET NULL,
-    region_id              INTEGER REFERENCES regions(id),
-    kind                   TEXT NOT NULL,                -- web | storage | compute | ai
+    region_id              INTEGER NOT NULL REFERENCES regions(id),
+    kind                   TEXT NOT NULL,                -- web | compute | storage | ai
     name                   TEXT NOT NULL,
-    requirements_json      TEXT NOT NULL DEFAULT '{}',
+    resource               TEXT NOT NULL,                -- cpu | storage_tb | gpu
+    units                  REAL NOT NULL,                -- amount of the resource
+    units_eq               REAL NOT NULL,                -- normalized size for market share
+    premium                INTEGER NOT NULL DEFAULT 0,   -- 1 = needs redundant racks
     revenue_cents_per_tick INTEGER NOT NULL,
     penalty_cents          INTEGER NOT NULL DEFAULT 0,
+    duration_ticks         INTEGER NOT NULL,
     offered_tick           INTEGER NOT NULL,
+    offer_expires_tick     INTEGER NOT NULL,
     start_tick             INTEGER,
     end_tick               INTEGER,
-    status                 TEXT NOT NULL DEFAULT 'offered' -- offered | active | completed | breached | expired
+    sla_fail_streak        INTEGER NOT NULL DEFAULT 0,
+    status                 TEXT NOT NULL DEFAULT 'offered' -- offered | active | completed | breached | cancelled | expired
 );
 CREATE INDEX IF NOT EXISTS idx_contracts_world ON contracts(world_id, status);
+CREATE INDEX IF NOT EXISTS idx_contracts_company ON contracts(company_id, status);
 
+-- Reserved for the research tree (cut from the first release).
 CREATE TABLE IF NOT EXISTS research (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -135,23 +170,32 @@ CREATE TABLE IF NOT EXISTS research (
     UNIQUE (company_id, tech_code)
 );
 
+-- Abstract capacity of AI rivals per region (they do not build real racks).
+CREATE TABLE IF NOT EXISTS ai_state (
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    region_id  INTEGER NOT NULL REFERENCES regions(id) ON DELETE CASCADE,
+    capacity   REAL NOT NULL DEFAULT 0,                  -- in normalized units
+    PRIMARY KEY (company_id, region_id)
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     world_id     INTEGER NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
     tick         INTEGER NOT NULL,
-    kind         TEXT NOT NULL,                          -- e.g. power_outage | heatwave | market_boom
-    company_id   INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL,                          -- grid_outage | heatwave | power_spike | market_boom | milestone | ...
+    company_id   INTEGER REFERENCES companies(id) ON DELETE CASCADE, -- NULL = visible to everyone
     region_id    INTEGER REFERENCES regions(id),
+    ends_tick    INTEGER,                                -- for region events with a duration
     payload_json TEXT NOT NULL DEFAULT '{}'
 );
-CREATE INDEX IF NOT EXISTS idx_events_world ON events(world_id, tick);
+CREATE INDEX IF NOT EXISTS idx_events_world ON events(world_id, id);
 
 CREATE TABLE IF NOT EXISTS ledger (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     world_id     INTEGER NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
     company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     tick         INTEGER NOT NULL,
-    category     TEXT NOT NULL,                          -- revenue | power | hardware | rent | penalty | reward ...
+    category     TEXT NOT NULL,                          -- revenue | power | rent | staff | hardware | penalty | reward ...
     amount_cents INTEGER NOT NULL,                       -- positive = income, negative = expense
     description  TEXT NOT NULL DEFAULT ''
 );

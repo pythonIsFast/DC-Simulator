@@ -86,9 +86,37 @@ Cut first if time runs short: research tree and datacenter interior view.
 - Server-authoritative logic to prevent cheating on leaderboards
   (`command_log` gives an audit trail).
 
-## Phase 1 status
+## Status
 
-Implemented: project structure, SQLite schema, JWT auth, world model
-(creation with regions, player company, AI rivals, market share rows),
-command endpoint with registry, tick clock with offline catch-up, minimal
-test frontend.
+| Phase | State |
+|---|---|
+| 1 Structure, auth, DB, world model | done |
+| 2 Globe, regions, UI frame | done (procedural globe from Natural Earth land polygons) |
+| 3 Rack builder | done (drag & drop with snap, rules, templates, cloning) |
+| 4 Economy, power, heat, tick engine | done |
+| 5 Contracts, AI rivals, events | done |
+| 6 Game feel, sound | done (first pass, needs playtesting and balancing) |
+
+Cut as planned: **research tree** (table exists, no logic). The datacenter
+interior view exists as room view (instanced racks, heatmap) plus the rack view.
+
+All numbers (prices, power, rates, probabilities) are estimates in
+`backend/data/game_config.py`, `backend/data/hardware.py` and
+`backend/data/world_seed.py` and have not been playtested.
+
+## Simulation summary
+
+Per tick (1 in-game hour) and human company:
+
+1. Random incidents per rack (PDU, switch, cable). Redundancy absorbs them.
+2. Rack evaluation: breaker trip on overload, no PDU, no uplink capacity,
+   grid outage (UPS saves a rack).
+3. Datacenter: heat vs cooling (throttle, shutdown), facility power incl. PUE
+   (depends on region temperature) vs grid connection.
+4. Capacity pools per region; contracts consume them (premium contracts only
+   from redundant racks). Unserved contracts accumulate an SLA streak and are
+   breached after 48 h.
+5. Costs: electricity, rent, staff. Milestones are checked.
+
+Daily: new customer offers where demand is unserved, AI rivals earn, pay and
+invest (abstract capacity model), market share is recalculated.

@@ -18,12 +18,16 @@ async function request(method, path, body) {
   return data;
 }
 
+const since = (cursor) => (cursor == null ? "" : `?since_event=${cursor}`);
+
 export const api = {
   register: (username, password) => request("POST", "/api/auth/register", { username, password }),
   local: () => request("POST", "/api/auth/local"),
   login: (username, password) => request("POST", "/api/auth/login", { username, password }),
   listWorlds: () => request("GET", "/api/worlds"),
   createWorld: (name, company_name, ai_count) => request("POST", "/api/worlds", { name, company_name, ai_count }),
-  getWorld: (id) => request("GET", `/api/worlds/${id}`),
-  command: (id, type, payload = {}) => request("POST", `/api/worlds/${id}/commands`, { type, payload }),
+  hardware: () => request("GET", "/api/worlds/hardware"),
+  getWorld: (id, cursor) => request("GET", `/api/worlds/${id}${since(cursor)}`),
+  command: (id, type, payload = {}, cursor) =>
+    request("POST", `/api/worlds/${id}/commands${since(cursor)}`, { type, payload }),
 };

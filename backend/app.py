@@ -7,6 +7,8 @@ import sys
 
 from flask import Flask, jsonify, send_from_directory
 
+import clock
+import sim
 from config import Config, FRONTEND_DIR
 from db import init_db
 
@@ -17,6 +19,8 @@ def create_app(overrides=None):
     if overrides:
         app.config.update(overrides)
     init_db(app)
+    if sim.tick_world not in clock.TICK_HANDLERS:
+        clock.TICK_HANDLERS.append(sim.tick_world)
 
     from routes import auth_routes, world_routes
 

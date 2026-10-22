@@ -5,7 +5,7 @@ from clock import catch_up
 from commands import execute_command
 from data.game_config import MAX_AI_RIVALS, NAME_MAX
 from db import get_db
-from world import create_world, get_user_company, world_state, world_summary
+from world import create_world, get_user_company, hardware_catalog, world_state, world_summary
 
 bp = Blueprint("worlds", __name__, url_prefix="/api/worlds")
 
@@ -65,7 +65,7 @@ def get_world(world_id):
     world, company, err = _load(world_id)
     if err:
         return err
-    return jsonify(world_state(get_db(), world, company))
+    return jsonify(world_state(get_db(), world, company, _since_event()))
 
 
 @bp.post("/<int:world_id>/commands")
@@ -86,4 +86,15 @@ def post_command(world_id):
     # Return the fresh state so the client never has to guess the outcome.
     world = db.execute("SELECT * FROM worlds WHERE id = ?", (world_id,)).fetchone()
     company = get_user_company(db, world_id, g.user_id)
-    return jsonify(result=result, state=world_state(db, world, company))
+    return jsonify(result=result, state=world_state(db, world, company, _since_event()))
+
+
+def _since_event():
+    """Optional ?since_event=<id>: only events newer than the client's cursor."""
+    return request.args.get("since_event", type=int)
+
+
+@bp.get("/hardware")
+@login_required
+def get_hardware():
+    return jsonify(hardware_catalog(get_db()))
