@@ -12,6 +12,7 @@ import builder
 import capacity
 import market
 import racks as rk
+import research
 from bookkeeping import add_event, book, change_cash
 from data import game_config as cfg
 
@@ -248,8 +249,11 @@ def _propose_upgrade(db, world, company, admin, tick, dcs, hws, keys):
         for code, why in cases:
             if ("upgrade", dc["id"], code) in keys:
                 continue
-            hw = by_code.get(code)
+            hw = by_code.get(code) or by_code.get({"dc_chiller": "dc_crac", "dc_feed_big": "dc_feed"}.get(code))   # locked? use the basic variant
             if hw is None or hw["price_cents"] > _cash(db, company["id"]):
+                continue
+            code = hw["code"]
+            if ("upgrade", dc["id"], code) in keys:
                 continue
             plan = {"type": "upgrade", "dc_id": dc["id"], "code": code, "qty": 1}
             summary = {"lines": [why, "Installs: 1x %s" % hw["name"]], "items": [], "adds": {}, "revenue_cents_per_tick": 0}
@@ -357,7 +361,8 @@ def generate_proposals(db, world, company, tick, rng, admins, per_admin=None):
         dc["max_racks"] = cfg.DC_MAX_RACKS
         for rack in dc["racks"]:
             rack["stats"] = rk.rack_stats(rack["items"])
-    hws = [rk.hardware_from_row(r) for r in db.execute("SELECT * FROM hardware_types")]
+    done = research.done_set(db, company["id"])
+    hws = [h for h in (rk.hardware_from_row(r) for r in db.execute("SELECT * FROM hardware_types")) if research.hw_allowed(h["code"], done)]
     contracts = db.execute("SELECT * FROM contracts WHERE company_id = ? AND status = 'active'", (company["id"],)).fetchall()
     cap = capacity.region_capacity(dcs, contracts)
     regions = {r["id"]: r for r in db.execute("SELECT * FROM regions WHERE world_id = ?", (world["id"],))}
@@ -437,7 +442,7 @@ def _execute_plan(db, world, company, plan):
         builder.insert_datacenter(db, world, company["id"], region, plan["name"], builder.dc_cost(region))
 
 
-def process_orders(db, world, company, tick):
+def process_orders(db, world, company, tick, speed_bonus=0.0):
     """Assign queued orders to idle technicians and advance the work in progress."""
     cid = company["id"]
     world = dict(world, tick=tick)   # catch-up passes the world row of the first tick; use the current one
@@ -456,7 +461,7 @@ def process_orders(db, world, company, tick):
         "SELECT o.*, e.skill AS e_skill, e.name AS e_name FROM work_orders o JOIN employees e ON e.id = o.employee_id"
         " WHERE o.company_id = ? AND o.status = 'in_progress'", (cid,)).fetchall()
     for o in working:
-        progress = o["progress"] + 1.0 + cfg.TECH_SPEED_PER_SKILL * (o["e_skill"] - 1)
+        progress = o["progress"] + (1.0 + cfg.TECH_SPEED_PER_SKILL * (o["e_skill"] - 1)) * (1.0 + speed_bonus)
         if progress < o["total_ticks"]:
             db.execute("UPDATE work_orders SET progress = ? WHERE id = ?", (progress, o["id"]))
             continue

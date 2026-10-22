@@ -11,6 +11,7 @@ import random
 import ai
 import market
 import racks as rk
+import research
 import staff
 from bookkeeping import add_event, book, change_cash
 from data import game_config as cfg
@@ -88,6 +89,7 @@ def _empty_pool():
 
 def evaluate(db, world_id, company_id, tick, dcs, region_events, allow_trip):
     """Compute live status of racks/datacenters and persist it. Returns an evaluation dict."""
+    rfx = research.effects(db, company_id)
     pools = {}
     energy_cents = rent_cents = staff_cents = 0
     rack_count = redundant_racks = max_used_u = 0
@@ -158,7 +160,7 @@ def evaluate(db, world_id, company_id, tick, dcs, region_events, allow_trip):
                 add_event(db, world_id, tick, "thermal_shutdown",
                           "Thermal shutdown in %s: not enough cooling!" % dc["name"],
                           company_id=company_id, region_id=rid)
-        pue = cfg.PUE_BASE + cfg.PUE_PER_DEGREE * max(0.0, dc["avg_temp_c"] - cfg.PUE_REF_TEMP_C)
+        pue = max(1.02, cfg.PUE_BASE + cfg.PUE_PER_DEGREE * max(0.0, dc["avg_temp_c"] - cfg.PUE_REF_TEMP_C) + rfx["pue"])
         facility_kw = it_kw * pue
         power_cap = dc["power_capacity_kw"] + feed_kw
         perf_power = 1.0 if facility_kw <= power_cap or facility_kw <= 0 else power_cap / facility_kw
@@ -340,10 +342,14 @@ def refresh_company(db, world, company_id, tick):
 
 
 def _run_company_tick(db, world, company, tick, rng, dcs, region_events):
-    roll_incidents(db, world["id"], company["id"], tick, rng, dcs, staff.effects(db, company["id"]))
+    fx = staff.effects(db, company["id"])
+    rfx = research.effects(db, company["id"])
+    fx["incident_mult"] *= rfx["incident_mult"]
+    roll_incidents(db, world["id"], company["id"], tick, rng, dcs, fx)
     ev = evaluate(db, world["id"], company["id"], tick, dcs, region_events, allow_trip=True)
-    revenue = settle_contracts(db, world["id"], company, tick, ev, dcs)
-    staff.process_orders(db, world, company, tick)
+    revenue = int(settle_contracts(db, world["id"], company, tick, ev, dcs) * (1.0 + rfx["revenue_mult"]))
+    staff.process_orders(db, world, company, tick, rfx["tech_speed"])
+    research.tick(db, world, company, tick)
     expenses = {"power": ev["energy_cents"], "rent": ev["rent_cents"], "salary": staff.salary_total(db, company["id"])}
     book(db, world["id"], company["id"], tick, "revenue", revenue, "Customer contracts")
     for category, cents in expenses.items():

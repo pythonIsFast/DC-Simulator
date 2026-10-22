@@ -7,9 +7,11 @@ import ai
 import market
 from capacity import region_capacity
 import racks as rk
+import research
 import sim
 import staff
 from data import game_config as cfg
+from data import research as data_research
 from data.world_seed import AI_RIVALS, REGIONS
 
 PLAYER_COLOR = "#4ea1ff"
@@ -89,7 +91,9 @@ def hardware_catalog(db):
     rows = db.execute("SELECT * FROM hardware_types ORDER BY id").fetchall()
     return {
         "hardware": [
-            {k: v for k, v in rk.hardware_from_row(r).items()} for r in rows
+            {**rk.hardware_from_row(r), "tech": data_research.HARDWARE_TECH.get(r["code"]),
+             "tech_name": data_research.TECH_BY_CODE[data_research.HARDWARE_TECH[r["code"]]]["name"] if r["code"] in data_research.HARDWARE_TECH else None}
+            for r in rows
         ],
         "rules": {
             "rack_u": cfg.RACK_U, "rack_shell_cents": cfg.RACK_SHELL_CENTS, "sell_back_ratio": cfg.SELL_BACK_RATIO,
@@ -225,6 +229,7 @@ def world_state(db, world, company, since_event=None):
         ],
         "capacity": region_capacity(dcs, own),
         "team": staff.team_state(db, company, tick),
+        "research": research.state(db, company["id"], {h["code"]: h["name"] for h in (rk.hardware_from_row(r) for r in db.execute("SELECT * FROM hardware_types"))}),
         "contracts": [_contract_json(c) for c in own],
         "offers": [_contract_json(c) for c in offers],
         "market_share": [{"region_id": s["region_id"], "company_id": s["company_id"], "share": s["share"]}

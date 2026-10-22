@@ -5,6 +5,7 @@ import { run, toast } from "./ui.js";
 import { sfx } from "./audio.js";
 import { capacityBlock, RES_LABEL } from "./capacity.js";
 import { teamView } from "./team.js";
+import { researchView } from "./research.js";
 
 let open = null;       // name of the open drawer or null
 let tab = "offers";
@@ -31,13 +32,13 @@ export function renderDrawer(force = false) {
   const s = store.state;
   if (!open || !s) { el.hidden = true; return; }
   const sig = open + tab + JSON.stringify(open === "contracts" ? [s.offers, s.contracts, s.capacity]
-    : open === "team" ? s.team : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents, log.length] : open === "goals" ? s.milestones : log.length);
+    : open === "team" ? s.team : open === "research" ? s.research : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents, log.length] : open === "goals" ? s.milestones : log.length);
   if (!force && sig === lastSig) return;
   lastSig = sig;
   el.hidden = false;
   const scroll = el.scrollTop;
-  const body = { contracts: contractsView, market: marketView, log: logView, goals: goalsView, team: teamView }[open](s);
-  el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Overview", log: "Event log", goals: "Goals", team: "Team" }[open]),
+  const body = { contracts: contractsView, market: marketView, log: logView, goals: goalsView, team: teamView, research: researchView }[open](s);
+  el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Overview", log: "Event log", goals: "Goals", team: "Team", research: "Research" }[open]),
     h("button", { class: "secondary small", onclick: () => toggleDrawer(open) }, "Close")), body);
   keepDetails(el, open);
   el.scrollTop = scroll;

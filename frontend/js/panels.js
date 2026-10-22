@@ -32,7 +32,7 @@ export function renderContext(force = false) {
     return;
   }
   const slice = v.mode === "room"
-    ? JSON.stringify([dcById(v.dcId), s.templates, heatmapOn, s.capacity])
+    ? JSON.stringify([dcById(v.dcId), s.templates, heatmapOn, s.capacity, s.research.done])
     : JSON.stringify([v.regionId, s.regions, s.datacenters.map((d) => [d.id, d.name, d.region_id, d.racks.length, d.racks.map((r) => r.online)]), s.market_share, s.capacity]);
   if (!force && slice === lastSig) return;
   lastSig = slice;
@@ -146,8 +146,8 @@ function roomPanel() {
   for (const hw of store.hw.list.filter((x) => x.category.startsWith("dc_"))) {
     const owned = dc.equipment[hw.code] || 0;
     up.append(h("div", { class: "item" }, h("div", { class: "title" }, h("span", {}, hw.name), h("span", { class: "muted" }, `owned: ${owned}`)),
-      h("div", { class: "row" }, h("span", { class: "sub", style: "flex:1" }, money(hw.price_cents)),
-        h("button", { class: "small", onclick: async () => { if (await run("buy_dc_equipment", { datacenter_id: dc.id, code: hw.code, qty: 1 }, "build")) toast(`${hw.name} installed`, "good"); } }, "Buy"))));
+      h("div", { class: "row" }, h("span", { class: "sub", style: "flex:1" }, isLocked(hw) ? `Research: ${hw.tech_name}` : money(hw.price_cents)),
+        h("button", { class: "small", disabled: isLocked(hw), title: isLocked(hw) ? `Requires research: ${hw.tech_name}` : "", onclick: async () => { if (await run("buy_dc_equipment", { datacenter_id: dc.id, code: hw.code, qty: 1 }, "build")) toast(`${hw.name} installed`, "good"); } }, "Buy"))));
   }
   box.append(up);
 
@@ -186,7 +186,16 @@ function shortSpec(hw) {
   return parts.join(" · ");
 }
 
+const isLocked = (hw) => !!hw.tech && !store.state.research.done.includes(hw.tech);
+
 function hwCard(hw) {
+  if (isLocked(hw)) {
+    const lockedEl = h("div", { class: "item locked", title: `Requires research: ${hw.tech_name}` },
+      h("div", { class: "title" }, h("span", {}, hw.name), h("span", { class: "muted" }, "\uD83D\uDD12 Locked")),
+      h("div", { class: "sub" }, `Research: ${hw.tech_name}`));
+    lockedEl.addEventListener("click", () => { toast(`Requires research: ${hw.tech_name}`, "warn"); sfx.error(); });
+    return lockedEl;
+  }
   const el = h("div", { class: "item draggable", draggable: "true", title: "Drag into the rack, or click to mount at the first free spot" },
     h("div", { class: "title" }, h("span", {}, hw.name), h("span", {}, money(hw.price_cents))),
     h("div", { class: "sub" }, shortSpec(hw)));
@@ -246,7 +255,7 @@ function buildRackPanel(root, found) {
     h("p", { class: "muted", style: "font-size:.82rem;margin:0" }, "Drag into the rack, or click to mount."),
     tabsBox, listBox, detailsBox, actions,
   );
-  rackBuilt = { rackId: found.rack.id, statsBox, selBox, detailsBox };
+  rackBuilt = { rackId: found.rack.id, statsBox, selBox, detailsBox, tabsBox, listBox, researchSig: store.state.research.done.join() };
   updateSelection();
 }
 
@@ -256,6 +265,8 @@ const check = (ok, text) => h("div", { class: "check " + (ok ? "ok" : "no") }, (
 function updateRackStats(found) {
   const { rack, dc } = found;
   const st = rack.stats;
+  const rsig = store.state.research.done.join();
+  if (rackBuilt.researchSig !== rsig) { rackBuilt.researchSig = rsig; buildPalette(rackBuilt.tabsBox, rackBuilt.listBox); }
   const loadRatio = st.limit_w ? st.load_w / st.limit_w : 0;
   const empty = st.used_u === 0;
   const [pill, kind] = rack.online ? (empty ? ["Empty", ""] : ["Online", "good"]) : [rack.offline_text || "Offline", "bad"];

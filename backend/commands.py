@@ -10,6 +10,7 @@ import json
 import builder
 import market
 import racks as rk
+import research
 import sim
 import staff
 from bookkeeping import book, change_cash
@@ -63,6 +64,13 @@ def _spend(db, world, company, cents, category, description):
 def _refund(db, world, company, cents, description):
     change_cash(db, company["id"], cents)
     book(db, world["id"], company["id"], world["tick"], "refund", cents, description)
+
+
+def _require_unlocked(db, company, code):
+    try:
+        research.require_hw(db, company["id"], code)
+    except research.ResearchError as exc:
+        raise CommandError(str(exc))
 
 
 def _hw_by_code(db, code):
@@ -160,6 +168,7 @@ def build_datacenter(db, world, company, payload):
 def buy_dc_equipment(db, world, company, payload):
     dc = _own_dc(db, company, _int(payload, "datacenter_id"))
     hw = _hw_by_code(db, payload.get("code"))
+    _require_unlocked(db, company, hw["code"])
     qty = _int(payload, "qty")
     if hw["category"] not in DC_CATEGORIES or not (1 <= qty <= 10):
         raise CommandError("Invalid equipment or quantity")
@@ -194,6 +203,8 @@ def buy_rack(db, world, company, payload):
     elif payload.get("clone_rack_id") is not None:
         src = _own_rack(db, company, _int(payload, "clone_rack_id"))
         layout = _layout_of(_rack_items(db, src["id"]))
+    for entry in layout:
+        _require_unlocked(db, company, entry.get("code"))
     slot = payload.get("slot")
     if slot is None:
         slot = next(s for s in range(cfg.DC_MAX_RACKS) if s not in used)
@@ -218,6 +229,7 @@ def rename_rack(db, world, company, payload):
 def install_item(db, world, company, payload):
     rack = _own_rack(db, company, _int(payload, "rack_id"))
     hw = _hw_by_code(db, payload.get("code"))
+    _require_unlocked(db, company, hw["code"])
     u_start = _int(payload, "u_start")
     err = rk.placement_error(_rack_items(db, rack["id"]), hw, u_start)
     if err:
@@ -352,6 +364,15 @@ def cancel_contract(db, world, company, payload):
 
 
 # ---------------------------------------------------------------- staff
+
+@command("start_research")
+def start_research(db, world, company, payload):
+    try:
+        research.start(db, world, company, payload.get("code"))
+    except research.ResearchError as exc:
+        raise CommandError(str(exc))
+    return {}
+
 
 @command("hire_candidate")
 def hire_candidate(db, world, company, payload):
