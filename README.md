@@ -16,7 +16,9 @@ backend/            Flask API, SQLite, JWT
   racks.py          rack rules and statistics
   market.py         regional demand, market share, customer offers
   ai.py             rule-based AI rivals
-  staff.py          employees: hiring, admin proposals, technician work orders
+  staff.py          employees: hiring, admin proposals, technician work orders, sales
+  research.py       research tree (data in data/research.py)
+  decisions.py      big events with decisions
   builder.py        shared construction helpers, capacity.py sellable capacity per region
   commands.py       command registry (all player actions)
   world.py          world creation and state serialization
@@ -70,6 +72,18 @@ technician builds it over game time. Technicians also shorten failures, admins l
 failure chance. Higher skill gives better plans, faster work and higher salary. Salaries
 replace the old flat staff cost.
 
+## Research, decisions, living world
+
+- **Research** (top bar): 20 technologies unlock hardware (GPU nodes, 100G, liquid cooling, ...)
+  and permanent bonuses (power overhead, failures, technician speed, revenue). Two projects at a
+  time, admins speed it up. Locked hardware shows a lock in the rack builder.
+- **Decisions**: every few days a big event asks for a choice (fire, cyber attack, big customer,
+  audit, energy crisis, poaching, ...). Options have costs and risks; if you do not decide in
+  time, the default option happens. The game pauses when one arrives.
+- **Living room**: employees walk around the datacenter room, technicians build approved plans
+  (a growing construction site shows progress) and repair failed racks, admins and sales sit at
+  the ops desk. Offline racks get an alarm beacon, fires and tripped breakers smoke.
+
 ## Login
 
 By default (`DC_LOCAL_MODE` unset or `1`) there is no login: the frontend gets
@@ -92,7 +106,8 @@ Commands: `set_speed`, `rename_company`, `build_datacenter`, `buy_dc_equipment`,
 `buy_rack` (optionally `template_id`, `clone_rack_id`, `slot`), `install_item`,
 `move_item`, `remove_item`, `sell_rack`, `rename_rack`, `repair_rack`,
 `save_template`, `delete_template`, `accept_contract`, `cancel_contract`,
-`hire_candidate`, `fire_employee`, `approve_proposal`, `reject_proposal`.
+`hire_candidate`, `fire_employee`, `approve_proposal`, `reject_proposal`, `set_auto_accept`,
+`start_research`, `resolve_decision`.
 Every command is validated server side and written to `command_log`.
 
 ## Notes
