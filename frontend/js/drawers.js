@@ -1,5 +1,5 @@
 // Left drawer: contracts, market, event log and milestones.
-import { $, h, money, money2, num, pct, bar, stat, dateText } from "./util.js";
+import { $, h, money, money2, num, pct, bar, stat, dateText, keepDetails } from "./util.js";
 import { store, bus, regionById } from "./store.js";
 import { run, toast } from "./ui.js";
 import { sfx } from "./audio.js";
@@ -34,9 +34,12 @@ export function renderDrawer(force = false) {
   if (!force && sig === lastSig) return;
   lastSig = sig;
   el.hidden = false;
+  const scroll = el.scrollTop;
   const body = { contracts: contractsView, market: marketView, log: logView, goals: goalsView }[open](s);
   el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Overview", log: "Event log", goals: "Goals" }[open]),
     h("button", { class: "secondary small", onclick: () => toggleDrawer(open) }, "Close")), body);
+  keepDetails(el, open);
+  el.scrollTop = scroll;
 }
 
 function contractsView(s) {

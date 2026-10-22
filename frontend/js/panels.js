@@ -1,6 +1,6 @@
 // Context panel (right side): content depends on the current view (globe / room / rack).
 // Kept deliberately small: the important things first, the rest inside collapsible sections.
-import { $, h, money, num, pct, kw, bar, stat } from "./util.js";
+import { $, h, money, num, pct, kw, bar, stat, keepDetails } from "./util.js";
 import { store, bus, regionById, dcById, rackById } from "./store.js";
 import { run, toast } from "./ui.js";
 import { sfx } from "./audio.js";
@@ -37,7 +37,10 @@ export function renderContext(force = false) {
   if (!force && slice === lastSig) return;
   lastSig = slice;
   rackBuilt = null;
+  const scroll = root.scrollTop;
   root.replaceChildren(v.mode === "room" ? roomPanel() : globePanel());
+  keepDetails(root, v.mode);
+  root.scrollTop = scroll;
 }
 
 // ------------------------------------------------------------------ globe
@@ -281,8 +284,8 @@ function updateRackStats(found) {
     stat("Sellable CPU", num(st.cpu)), stat("Sellable storage", num(st.storage_tb) + " TB"), stat("Sellable GPU", num(st.gpu)));
   if (st.warnings.length) det.append(h("ul", { class: "warnings" }, st.warnings.map((w) => h("li", { class: /Overload|No PDU|No ToR/.test(w) ? "bad" : "" }, w))));
   if (dc.perf < 1) det.append(h("p", { class: "warn" }, `Datacenter throttled to ${pct(dc.perf)}.`));
-  if (rackBuilt.detailsBox.firstChild?.open) det.open = true;
   rackBuilt.detailsBox.replaceChildren(det);
+  keepDetails(rackBuilt.detailsBox, "rack");
 }
 
 function updateSelection() {

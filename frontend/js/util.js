@@ -41,3 +41,14 @@ export function bar(fraction, kind = "") {
 export function stat(label, value, cls = "") {
   return h("div", { class: "stat" }, h("span", { class: "muted" }, label), h("span", { class: cls }, value));
 }
+
+// Collapsible sections are rebuilt on every state update; remember which ones the user opened.
+const detailState = new Map();
+export function keepDetails(root, scope) {
+  root.querySelectorAll("details").forEach((d) => {
+    const title = (d.querySelector("summary")?.textContent || "").replace(/\s*\(.*\)$/, "");
+    const key = `${scope}:${title}`;
+    if (detailState.has(key)) d.open = detailState.get(key);
+    d.addEventListener("toggle", () => detailState.set(key, d.open));
+  });
+}
