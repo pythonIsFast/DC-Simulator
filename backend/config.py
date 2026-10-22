@@ -12,6 +12,10 @@ else:
     INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
     FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
 
+# Android build (Chaquopy) points these at real files in app storage.
+INSTANCE_DIR = os.environ.get("DC_INSTANCE_DIR", INSTANCE_DIR)
+FRONTEND_DIR = os.environ.get("DC_FRONTEND_DIR", FRONTEND_DIR)
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRES_HOURS = 12
 
