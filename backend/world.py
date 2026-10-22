@@ -132,6 +132,33 @@ def _contract_json(c):
     }
 
 
+def region_capacity(dcs, contracts):
+    """Sellable capacity per region: total (online racks x performance), sold and free per resource."""
+    keys = ("cpu", "storage_tb", "gpu")
+    cap = {}
+    for dc in dcs:
+        c = cap.setdefault(dc["region_id"], {k: {"total": 0.0, "sold": 0.0, "red_total": 0.0, "red_sold": 0.0} for k in keys})
+        for rack in dc["racks"]:
+            if not rack["online"]:
+                continue
+            for k in keys:
+                c[k]["total"] += rack["stats"][k] * dc["perf"]
+                if rack["stats"]["redundant"]:
+                    c[k]["red_total"] += rack["stats"][k] * dc["perf"]
+    for ct in contracts:
+        c = cap.get(ct["region_id"])
+        if c is None:
+            continue
+        c[ct["resource"]]["sold"] += ct["units"]
+        if ct["premium"]:
+            c[ct["resource"]]["red_sold"] += ct["units"]
+    return {
+        rid: {k: {"total": v["total"], "sold": v["sold"], "free": v["total"] - v["sold"],
+                  "red_free": v["red_total"] - v["red_sold"]} for k, v in c.items()}
+        for rid, c in cap.items()
+    }
+
+
 def world_state(db, world, company, since_event=None):
     """Full state snapshot for the client of `company`."""
     wid, tick = world["id"], world["tick"]
@@ -220,6 +247,7 @@ def world_state(db, world, company, since_event=None):
             }
             for dc in dcs
         ],
+        "capacity": region_capacity(dcs, own),
         "contracts": [_contract_json(c) for c in own],
         "offers": [_contract_json(c) for c in offers],
         "market_share": [{"region_id": s["region_id"], "company_id": s["company_id"], "share": s["share"]}

@@ -3,6 +3,7 @@ import { $, h, money, money2, num, pct, bar, stat, dateText } from "./util.js";
 import { store, bus, regionById } from "./store.js";
 import { run, toast } from "./ui.js";
 import { sfx } from "./audio.js";
+import { capacityBlock, RES_LABEL } from "./capacity.js";
 
 let open = null;       // name of the open drawer or null
 let tab = "offers";
@@ -28,7 +29,7 @@ export function renderDrawer(force = false) {
   const el = $("drawer");
   const s = store.state;
   if (!open || !s) { el.hidden = true; return; }
-  const sig = open + tab + JSON.stringify(open === "contracts" ? [s.offers, s.contracts, s.datacenters.map((d) => [d.region_id, d.racks.map((r) => [r.online, r.stats.cpu, r.stats.storage_tb, r.stats.gpu])])]
+  const sig = open + tab + JSON.stringify(open === "contracts" ? [s.offers, s.contracts, s.capacity]
     : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents, log.length] : open === "goals" ? s.milestones : log.length);
   if (!force && sig === lastSig) return;
   lastSig = sig;
@@ -38,32 +39,8 @@ export function renderDrawer(force = false) {
     h("button", { class: "secondary small", onclick: () => toggleDrawer(open) }, "Close")), body);
 }
 
-// Capacity currently available per region and resource (client-side estimate from the rack stats).
-function regionCapacity(s) {
-  const cap = {};
-  for (const dc of s.datacenters) {
-    const c = (cap[dc.region_id] ||= { all: { cpu: 0, storage_tb: 0, gpu: 0 }, red: { cpu: 0, storage_tb: 0, gpu: 0 } });
-    for (const r of dc.racks) {
-      if (!r.online) continue;
-      for (const k of ["cpu", "storage_tb", "gpu"]) {
-        c.all[k] += r.stats[k] * dc.perf;
-        if (r.stats.redundant) c.red[k] += r.stats[k] * dc.perf;
-      }
-    }
-  }
-  for (const c of s.contracts) {
-    const rc = cap[c.region_id];
-    if (!rc) continue;
-    rc.all[c.resource] -= c.units;
-    if (c.premium) rc.red[c.resource] -= c.units;
-  }
-  return cap;
-}
-
-const RES_LABEL = { cpu: "CPU units", storage_tb: "TB storage", gpu: "GPU units" };
-
 function contractsView(s) {
-  const cap = regionCapacity(s);
+  const cap = s.capacity;
   const tabs = h("div", { class: "row", style: "margin:.6rem 0" },
     h("button", { class: tab === "offers" ? "" : "secondary", onclick: () => { tab = "offers"; renderDrawer(true); } }, `Offers (${s.offers.length})`),
     h("button", { class: tab === "active" ? "" : "secondary", onclick: () => { tab = "active"; renderDrawer(true); } }, `Active (${s.contracts.length})`));
@@ -75,7 +52,8 @@ function contractsView(s) {
     for (const o of offers) {
       const region = regionById(o.region_id);
       const mine = hasDc.has(o.region_id);
-      const free = cap[o.region_id] ? (o.premium ? cap[o.region_id].red : cap[o.region_id].all)[o.resource] : 0;
+      const rc = cap[o.region_id];
+      const free = rc ? (o.premium ? rc[o.resource].red_free : rc[o.resource].free) : 0;
       const enough = free >= o.units;
       const status = !mine ? h("span", { class: "muted" }, `Needs a datacenter in ${region.name}`)
         : enough ? h("span", { class: "good" }, "✓ You have the capacity")
@@ -85,7 +63,7 @@ function contractsView(s) {
           h("span", { class: "good" }, money2(o.revenue_cents_per_tick) + "/h")),
         h("div", { class: "sub" }, `${num(o.units)} ${RES_LABEL[o.resource]} · ${Math.round(o.duration_ticks / 24)} days`),
         h("div", { class: "row", style: "margin-top:.3rem" }, h("span", { style: "flex:1;font-size:.88rem" }, status),
-          h("button", { class: "small", disabled: !mine, onclick: async () => { if (await run("accept_contract", { contract_id: o.id }, "cash")) toast(`Contract '${o.name}' signed`, "good"); } }, "Accept"))));
+          h("button", { class: "small", disabled: !mine, onclick: async () => { if (await run("accept_contract", { contract_id: o.id }, "cash")) toast(`Signed '${o.name}'. It is served from your racks in ${region.name}.`, "good"); } }, "Accept"))));
     }
   } else {
     if (!s.contracts.length) list.append(h("p", { class: "muted" }, "No active contracts. Accept an offer first."));
@@ -102,7 +80,12 @@ function contractsView(s) {
           h("button", { class: "danger small", onclick: async () => { if (confirm(`Cancel '${c.name}'? Penalty: ${money(c.penalty_cents / 2)}`)) await run("cancel_contract", { contract_id: c.id }, "unmount"); } }, "Cancel"))));
     }
   }
-  return h("div", {}, tabs, list);
+  const regionsWithCap = Object.keys(cap);
+  const info = h("details", { open: tab === "offers" },
+    h("summary", {}, "Your free capacity"),
+    h("p", { class: "muted", style: "font-size:.85rem;margin:.3rem 0" }, "A contract is served from the pooled capacity of all your online racks in its region, not from one rack. Premium contracts only count racks with 2 PDUs and 2 ToR switches."),
+    regionsWithCap.length ? regionsWithCap.map((rid) => h("div", {}, h("h3", {}, regionById(Number(rid)).name), capacityBlock(rid))) : h("p", { class: "muted" }, "Build a datacenter and mount servers first."));
+  return h("div", {}, info, tabs, list);
 }
 
 function marketView(s) {

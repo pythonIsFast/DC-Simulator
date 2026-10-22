@@ -5,6 +5,7 @@ import { store, bus, regionById, dcById, rackById } from "./store.js";
 import { run, toast } from "./ui.js";
 import { sfx } from "./audio.js";
 import { firstFit } from "./rules.js";
+import { capacityBlock } from "./capacity.js";
 
 const nav = (patch) => bus.emit("nav", patch);
 let lastSig = "";
@@ -31,8 +32,8 @@ export function renderContext(force = false) {
     return;
   }
   const slice = v.mode === "room"
-    ? JSON.stringify([dcById(v.dcId), s.templates, heatmapOn])
-    : JSON.stringify([v.regionId, s.regions, s.datacenters.map((d) => [d.id, d.name, d.region_id, d.racks.length, d.racks.map((r) => r.online)]), s.market_share]);
+    ? JSON.stringify([dcById(v.dcId), s.templates, heatmapOn, s.capacity])
+    : JSON.stringify([v.regionId, s.regions, s.datacenters.map((d) => [d.id, d.name, d.region_id, d.racks.length, d.racks.map((r) => r.online)]), s.market_share, s.capacity]);
   if (!force && slice === lastSig) return;
   lastSig = slice;
   rackBuilt = null;
@@ -74,6 +75,7 @@ function globePanel() {
     box.append(h("h3", {}, "Market share"));
     shares.forEach((m) => box.append(stat(names.get(m.company_id) || "?", pct(m.share, 1))));
   }
+  if (myDcs.length) box.append(h("h3", {}, "Capacity to sell"), capacityBlock(region.id));
   box.append(h("h3", {}, "Your datacenters here"));
   if (!myDcs.length) box.append(h("p", { class: "muted" }, "None yet."));
   myDcs.forEach((dc) => box.append(dcCard(dc)));
@@ -104,6 +106,9 @@ function roomPanel() {
     h("h2", {}, dc.name),
     meter("Cooling (heat)", dc.heat_kw, dc.cooling_cap_kw, "kW"),
     meter("Electricity", dc.facility_kw, dc.power_capacity_kw, "kW"),
+    h("h3", {}, "Capacity to sell"),
+    capacityBlock(dc.region_id),
+    h("p", { class: "muted", style: "font-size:.82rem" }, `Shared by all your online racks in ${regionById(dc.region_id).name}. Contracts are served from this pool.`),
   );
   if (dc.perf < 1) box.append(h("p", { class: "warn" }, `Throttled to ${pct(dc.perf)}: add cooling or power (Upgrades).`));
   if (uplinkNeed > dc.uplink_ports) box.append(h("p", { class: "bad" }, "Not enough uplink ports: buy an aggregation switch (Upgrades)."));
