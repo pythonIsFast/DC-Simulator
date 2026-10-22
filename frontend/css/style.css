@@ -112,3 +112,19 @@ canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
 #guide .muted { display: none; }
 
 @media (max-width: 900px) { #context { width: 280px; } #toasts { right: 300px; } .brand { display: none; } }
+
+/* Tiles, pills, rack cards */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.tile { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: .5rem .6rem; }
+.tile .big { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: .1rem 0 .2rem; }
+.tile .bar { margin: .2rem 0 0; }
+.pill { padding: .15rem .7rem; border-radius: 99px; font-size: .8rem; font-weight: 700; background: var(--line); }
+.pill.good { background: var(--good); color: #06280f; } .pill.warn { background: var(--warn); color: #2b1e00; } .pill.bad { background: var(--bad); color: #2d0710; }
+.rackgrid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .5rem; }
+.rackcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: .5rem .65rem; cursor: pointer; }
+.rackcard:hover { border-color: var(--accent); }
+.rackcard .title { font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.rackcard .sub { color: var(--muted); font-size: .8rem; }
+.rackcard.add { display: flex; align-items: center; justify-content: center; border-style: dashed; color: var(--accent); font-weight: 600; min-height: 3.2rem; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: inline-block; }
+.dot.good { background: var(--good); } .dot.bad { background: var(--bad); } .dot.idle { background: var(--muted); }

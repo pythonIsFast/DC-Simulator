@@ -88,23 +88,51 @@ function contractsView(s) {
   return h("div", {}, info, tabs, list);
 }
 
+const tileBox = (label, value, kind = "") => h("div", { class: "tile" }, h("div", { class: "muted", style: "font-size:.75rem" }, label), h("div", { class: "big " + kind }, value));
+
 function marketView(s) {
-  const rows = [{ id: s.company.id, name: s.company.name + " (you)", color: s.company.color, worth: s.company.net_worth_cents },
+  const rows = [{ id: s.company.id, name: s.company.name + " (you)", color: s.company.color, worth: s.company.net_worth_cents, me: true },
     ...s.rivals.map((r) => ({ id: r.id, name: r.name, color: r.color, worth: r.net_worth_cents }))].sort((a, b) => b.worth - a.worth);
-  const box = h("div", {}, h("h3", {}, "Net worth ranking"));
-  rows.forEach((r, i) => box.append(h("div", { class: "stat" }, h("span", { style: `color:${r.color}` }, `${i + 1}. ${r.name}`), h("span", {}, money(r.worth)))));
-  box.append(h("h3", {}, "Goals"), goalsView(s));
-  box.append(h("details", {}, h("summary", {}, "Recent events"), logView()));
-  const regionsBox = h("details", {}, h("summary", {}, "Market share per region"));
-  box.append(regionsBox);
+  const rank = rows.findIndex((r) => r.me) + 1;
+  const b = s.company.breakdown || {};
+  const net = s.company.revenue_cents_per_tick - s.company.expense_cents_per_tick;
+  const box = h("div", {});
+
+  box.append(h("div", { class: "tiles" },
+    tileBox("Cash", money(s.company.cash_cents), s.company.cash_cents < 0 ? "bad" : ""),
+    tileBox("Net worth", money(s.company.net_worth_cents)),
+    tileBox("Rank", `#${rank} of ${rows.length}`)));
+
+  box.append(h("h3", {}, "Money per hour"),
+    stat("Customers pay", "+" + money2(b.revenue || 0), "good"),
+    stat("Electricity", "-" + money2(-(b.power || 0))),
+    stat("Rent", "-" + money2(-(b.rent || 0))),
+    stat("Staff", "-" + money2(-(b.staff || 0))),
+    h("div", { class: "stat", style: "border-top:1px solid var(--line);margin-top:.2rem;padding-top:.3rem;font-weight:600" },
+      h("span", {}, "Profit"), h("span", { class: net >= 0 ? "good" : "bad" }, (net >= 0 ? "+" : "-") + money2(Math.abs(net)))));
+
+  const next = Object.entries(s.milestone_defs).find(([code]) => s.milestones[code] === undefined);
+  box.append(h("h3", {}, "Next goal"));
+  box.append(next ? h("div", { class: "item" }, h("div", { class: "title" }, h("span", {}, next[1].name), h("span", { class: "good" }, "+" + money(next[1].reward_cents))))
+    : h("p", { class: "good" }, "All goals reached!"));
+
+  box.append(h("h3", {}, "Ranking by net worth"));
+  rows.forEach((r, i) => box.append(h("div", { class: "stat" }, h("span", { style: `color:${r.me ? "var(--accent)" : r.color};font-weight:${r.me ? 700 : 400}` }, `${i + 1}. ${r.name}`), h("span", {}, money(r.worth)))));
+
+  // Market share: only regions where someone has customers; the rest stays collapsed.
   const colorOf = new Map(rows.map((r) => [r.id, r.color]));
+  const shareBox = h("details", {}, h("summary", {}, "Market share per region"));
   for (const region of s.regions) {
     const shares = s.market_share.filter((m) => m.region_id === region.id);
-    const bars = h("div", { style: "display:flex;height:10px;border-radius:5px;overflow:hidden;background:#1b2433;margin:.2rem 0 .6rem" },
-      shares.map((m) => h("i", { style: `width:${(m.share * 100).toFixed(1)}%;background:${colorOf.get(m.company_id)}`, title: pct(m.share, 1) })));
     const mine = shares.find((m) => m.company_id === s.company.id);
-    regionsBox.append(h("div", { class: "stat" }, h("span", {}, region.name), h("span", { class: "muted" }, mine ? "you: " + pct(mine.share, 1) : "")), bars);
+    const bars = h("div", { style: "display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--panel2);margin:.2rem 0 .6rem" },
+      shares.map((m) => h("i", { style: `width:${(m.share * 100).toFixed(1)}%;background:${colorOf.get(m.company_id)}`, title: pct(m.share, 1) })));
+    shareBox.append(h("div", { class: "stat" }, h("span", {}, region.name), h("span", { class: "muted" }, mine ? "you: " + pct(mine.share, 1) : "")), bars);
   }
+  box.append(shareBox);
+
+  const goals = h("details", {}, h("summary", {}, "All goals"), goalsView(s));
+  box.append(goals, h("details", {}, h("summary", {}, "Recent events"), logView()));
   return box;
 }
 

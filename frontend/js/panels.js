@@ -90,39 +90,54 @@ function globePanel() {
 
 // ------------------------------------------------------------------ room
 
-function meter(label, value, max, unit) {
-  const ratio = max ? value / max : 0;
-  const kind = ratio > 1 ? "badbar" : ratio > 0.85 ? "warnbar" : "";
-  return h("div", {}, stat(label, `${value.toFixed(1)} / ${max.toFixed(0)} ${unit}`, ratio > 1 ? "bad" : ""), bar(ratio, kind));
+function tile(label, value, ratio, kind = "") {
+  return h("div", { class: "tile" }, h("div", { class: "muted", style: "font-size:.75rem" }, label), h("div", { class: "big " + kind }, value),
+    bar(ratio, ratio > 1 ? "badbar" : ratio > 0.85 ? "warnbar" : ""));
+}
+
+// One verdict for the whole datacenter: the most important problem first.
+function dcHealth(dc, uplinkNeed) {
+  const heat = dc.cooling_cap_kw ? dc.heat_kw / dc.cooling_cap_kw : 0;
+  const power = dc.power_capacity_kw ? dc.facility_kw / dc.power_capacity_kw : 0;
+  const offline = dc.racks.filter((r) => !r.online && r.stats.server_count > 0).length;
+  if (heat > 1) return ["Too hot", "bad", "Servers are throttled. Add cooling units under Upgrades."];
+  if (power > 1) return ["Power limit", "bad", "Servers are throttled. Buy a power feed under Upgrades."];
+  if (uplinkNeed > dc.uplink_ports) return ["No uplinks", "bad", "Some racks are offline. Buy an aggregation switch under Upgrades."];
+  if (offline) return [`${offline} rack${offline > 1 ? "s" : ""} offline`, "warn", "Open the offline rack to see why."];
+  return ["All good", "good", ""];
 }
 
 function roomPanel() {
   const s = store.state;
   const dc = dcById(store.view.dcId);
   if (!dc) return h("div", {});
-  const box = h("div", {});
+  const region = regionById(dc.region_id);
   const uplinkNeed = dc.racks.reduce((a, r) => a + (r.stats.tor_count ? r.stats.uplinks_needed : 0), 0);
+  const heat = dc.cooling_cap_kw ? dc.heat_kw / dc.cooling_cap_kw : 0;
+  const power = dc.power_capacity_kw ? dc.facility_kw / dc.power_capacity_kw : 0;
+  const [label, kind, hint] = dcHealth(dc, uplinkNeed);
+  const box = h("div", {});
   box.append(
-    h("h2", {}, dc.name),
-    meter("Cooling (heat)", dc.heat_kw, dc.cooling_cap_kw, "kW"),
-    meter("Electricity", dc.facility_kw, dc.power_capacity_kw, "kW"),
+    h("div", { class: "row" }, h("h2", { style: "flex:1" }, dc.name), h("span", { class: "pill " + kind }, label)),
+    h("div", { class: "muted", style: "margin:-.2rem 0 .5rem" }, region.name),
+    ...(hint ? [h("p", { class: kind === "bad" ? "bad" : "warn", style: "margin:.2rem 0 .6rem" }, hint)] : []),
+    h("div", { class: "tiles" },
+      tile("Heat", pct(heat), heat), tile("Power", pct(power), power),
+      tile("Uplinks", `${uplinkNeed}/${dc.uplink_ports}`, dc.uplink_ports ? uplinkNeed / dc.uplink_ports : 1)),
     h("h3", {}, "Capacity to sell"),
     capacityBlock(dc.region_id),
-    h("p", { class: "muted", style: "font-size:.82rem" }, `Shared by all your online racks in ${regionById(dc.region_id).name}. Contracts are served from this pool.`),
   );
-  if (dc.perf < 1) box.append(h("p", { class: "warn" }, `Throttled to ${pct(dc.perf)}: add cooling or power (Upgrades).`));
-  if (uplinkNeed > dc.uplink_ports) box.append(h("p", { class: "bad" }, "Not enough uplink ports: buy an aggregation switch (Upgrades)."));
 
-  box.append(h("div", { class: "row", style: "margin:.6rem 0" },
-    h("button", { style: "flex:1", onclick: () => bus.emit("buy-rack", { template: templateChoice }) }, "+ Install rack"),
-    h("button", { class: heatmapOn ? "" : "secondary", onclick: () => { heatmapOn = !heatmapOn; bus.emit("heatmap", heatmapOn); renderContext(true); } }, "Heatmap")));
-  box.append(h("p", { class: "muted", style: "font-size:.8rem" }, "Or click an empty square on the floor. Click a rack to edit it."));
-
-  box.append(h("h3", {}, `Racks (${dc.racks.length}/${dc.max_racks})`));
-  if (!dc.racks.length) box.append(h("p", { class: "muted" }, "No racks yet."));
-  dc.racks.forEach((r) => box.append(h("div", { class: "item clickable", onclick: () => nav({ mode: "rack", dcId: dc.id, rackId: r.id }) },
-    h("div", { class: "title" }, h("span", {}, r.name), h("span", { class: r.online ? "good" : "bad" }, r.online ? "online" : (r.offline_text || "offline"))),
-    h("div", { class: "sub" }, `${r.stats.server_count} servers | ${kw(r.stats.load_w)}`))));
+  const free = dc.max_racks - dc.racks.length;
+  box.append(h("div", { class: "row", style: "margin-top:1rem" },
+    h("h3", { style: "flex:1;margin:0" }, `Racks ${dc.racks.length}/${dc.max_racks}`),
+    h("button", { class: "small " + (heatmapOn ? "" : "secondary"), onclick: () => { heatmapOn = !heatmapOn; bus.emit("heatmap", heatmapOn); renderContext(true); } }, "Heatmap")));
+  const grid = h("div", { class: "rackgrid" });
+  dc.racks.forEach((r) => grid.append(h("div", { class: "rackcard", onclick: () => nav({ mode: "rack", dcId: dc.id, rackId: r.id }) },
+    h("div", { class: "title" }, h("span", {}, r.name), h("i", { class: "dot " + (r.online ? "good" : r.stats.server_count ? "bad" : "idle") })),
+    h("div", { class: "sub" }, r.online ? `${r.stats.server_count} servers · ${kw(r.stats.load_w)}` : (r.stats.server_count ? r.offline_text || "offline" : "empty")))));
+  if (free > 0) grid.append(h("div", { class: "rackcard add", onclick: () => bus.emit("buy-rack", { template: templateChoice }) }, "+ Install rack"));
+  box.append(grid);
 
   const up = h("details", {}, h("summary", {}, "Upgrades"));
   for (const hw of store.hw.list.filter((x) => x.category.startsWith("dc_"))) {
@@ -131,7 +146,6 @@ function roomPanel() {
       h("div", { class: "row" }, h("span", { class: "sub", style: "flex:1" }, money(hw.price_cents)),
         h("button", { class: "small", onclick: async () => { if (await run("buy_dc_equipment", { datacenter_id: dc.id, code: hw.code, qty: 1 }, "build")) toast(`${hw.name} installed`, "good"); } }, "Buy"))));
   }
-  up.append(h("p", { class: "muted", style: "font-size:.8rem" }, `Uplink ports used: ${uplinkNeed} / ${dc.uplink_ports}`));
   box.append(up);
 
   const tpl = h("details", {}, h("summary", {}, "Rack templates"));
@@ -140,7 +154,7 @@ function roomPanel() {
     s.templates.map((t) => h("option", { value: t.id, selected: String(t.id) === templateChoice }, `New racks use: ${t.name}`))));
   s.templates.forEach((t) => tpl.append(h("div", { class: "item" }, h("div", { class: "title" }, h("span", {}, t.name),
     h("button", { class: "danger small", onclick: async () => { if (await run("delete_template", { template_id: t.id })) sfx.click(); } }, "Delete")))));
-  if (!s.templates.length) tpl.append(h("p", { class: "muted", style: "font-size:.8rem" }, "Save a finished rack as a template in the rack view to reuse it."));
+  if (!s.templates.length) tpl.append(h("p", { class: "muted", style: "font-size:.85rem" }, "Save a finished rack as a template in the rack view to reuse it."));
   box.append(tpl);
   return box;
 }
