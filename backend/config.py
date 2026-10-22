@@ -1,9 +1,16 @@
 import os
 import secrets
+import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
-FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
+if getattr(sys, "frozen", False):
+    # PyInstaller build: resources are unpacked to the bundle dir, saves live
+    # next to the .exe so the game stays portable.
+    FRONTEND_DIR = os.path.join(sys._MEIPASS, "frontend")
+    INSTANCE_DIR = os.path.join(os.path.dirname(sys.executable), "data")
+else:
+    INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+    FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRES_HOURS = 12
