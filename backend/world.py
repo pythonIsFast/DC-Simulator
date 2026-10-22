@@ -154,7 +154,7 @@ def region_capacity(dcs, contracts):
             c[ct["resource"]]["red_sold"] += ct["units"]
     return {
         rid: {k: {"total": v["total"], "sold": v["sold"], "free": v["total"] - v["sold"],
-                  "red_free": v["red_total"] - v["red_sold"]} for k, v in c.items()}
+                  "red_free": min(v["total"] - v["sold"], v["red_total"] - v["red_sold"])} for k, v in c.items()}
         for rid, c in cap.items()
     }
 

@@ -5,7 +5,7 @@ Money values are in integer cents. Hardware stats live in data/hardware.py.
 
 # --- Time ---
 # Real seconds that one in-game hour (tick) takes at speed 1x.
-SECONDS_PER_TICK_1X = 4.0
+SECONDS_PER_TICK_1X = 2.0
 ALLOWED_SPEEDS = (0, 1, 2, 5)
 # Upper bound of ticks simulated in one catch-up (offline progress), 30 days.
 MAX_CATCHUP_TICKS = 24 * 30
@@ -68,7 +68,7 @@ MARKET_BOOM_FACTOR = 1.25
 # --- Market and contracts ---
 REGION_DEMAND_BASE_UNITS = 15_000     # normalized units per demand_index point
 DEMAND_GROWTH_PER_TICK = 0.004 / 24   # linear growth, +0.4 % per day
-BASE_RATE_CENTS = 10                  # revenue per normalized unit and tick
+BASE_RATE_CENTS = 25                  # revenue per normalized unit and tick
 UNIT_WEIGHT = {"cpu": 1.0, "storage_tb": 1 / 6, "gpu": 3.0}
 KIND_RESOURCE = {"web": "cpu", "compute": "cpu", "storage": "storage_tb", "ai": "gpu"}
 KIND_RATE_MULT = {"web": 1.0, "compute": 1.1, "storage": 1.0, "ai": 2.0}

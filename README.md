@@ -86,7 +86,7 @@ Every command is validated server side and written to `command_log`.
 
 ## Notes
 
-- 1 tick = 1 in-game hour; at 1x one tick takes 4 real seconds
+- 1 tick = 1 in-game hour; at 1x one tick takes 2 real seconds
   (`data/game_config.py`). All balance numbers are untested estimates.
 - Money is stored as integer cents.
 - Rival names are parodies; never use real brand names.
