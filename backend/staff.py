@@ -73,13 +73,62 @@ def ensure_candidates_tx(db, company_id, tick):
         raise
 
 
+def max_employees(db, company_id):
+    """The team can grow with the company: a base plus room for every datacenter and rack."""
+    dcs = db.execute("SELECT COUNT(*) FROM datacenters WHERE company_id = ? AND status = 'active'", (company_id,)).fetchone()[0]
+    racks = db.execute("SELECT COUNT(*) FROM racks r JOIN datacenters d ON d.id = r.datacenter_id WHERE d.company_id = ?", (company_id,)).fetchone()[0]
+    return min(cfg.MAX_EMPLOYEES, cfg.EMPLOYEES_BASE + cfg.EMPLOYEES_PER_DC * dcs + cfg.EMPLOYEES_PER_RACK * racks)
+
+
+def staff_targets(db, company_id):
+    """How many people of each role the company needs right now (used by auto-hire and shown in the UI)."""
+    one = lambda sql: db.execute(sql, (company_id,)).fetchone()[0]
+    dcs = one("SELECT COUNT(*) FROM datacenters WHERE company_id = ? AND status = 'active'")
+    racks = one("SELECT COUNT(*) FROM racks r JOIN datacenters d ON d.id = r.datacenter_id WHERE d.company_id = ?")
+    queued = one("SELECT COUNT(*) FROM work_orders WHERE company_id = ? AND status = 'queued'")
+    contracts = one("SELECT COUNT(*) FROM contracts WHERE company_id = ? AND status = 'active'")
+    technicians = 0 if racks == 0 else 1 + racks // 12 + (1 if queued >= 2 else 0)
+    admins = 0 if dcs == 0 else 1 + (1 if racks >= 10 else 0) + (1 if racks >= 25 else 0)
+    sales = 0 if (racks < 4 and contracts < 3) else 1 + (1 if contracts >= 15 else 0) + (1 if contracts >= 35 else 0)
+    return {"technician": technicians, "admin": admins, "sales": sales}
+
+
+def run_auto_hire(db, world, company, tick=None):
+    """Hire from the job market where the company is short of people, if the policy allows and the cash lasts."""
+    policy = get_policy(db, company["id"])
+    if policy["auto_hire"] != "on":
+        return 0
+    world = dict(world, tick=world["tick"] if tick is None else tick)
+    targets = staff_targets(db, company["id"])
+    hired = 0
+    for role in ("admin", "technician", "sales"):
+        have = db.execute("SELECT COUNT(*) FROM employees WHERE company_id = ? AND role = ?", (company["id"], role)).fetchone()[0]
+        if have >= targets[role]:
+            continue
+        cands = db.execute("SELECT * FROM candidates WHERE company_id = ? AND role = ? AND skill >= ? AND expires_tick >= ?"
+                           " ORDER BY skill DESC, salary_cents_per_tick", (company["id"], role, policy["hire_min_skill"], world["tick"])).fetchall()
+        for cand in cands:
+            reserve = 10 * 24 * (salary_total(db, company["id"]) + cand["salary_cents_per_tick"])   # ten days of salaries must stay in the bank
+            if cand["hire_cost_cents"] + reserve > _cash(db, company["id"]):
+                continue
+            try:
+                hire(db, world, company, cand["id"])
+            except StaffError:
+                break
+            add_event(db, world["id"], world["tick"], "auto_hired", "Hired %s (%s, skill %d) automatically" % (cand["name"], role, cand["skill"]), company_id=company["id"])
+            hired += 1
+            break
+    return hired
+
+
 def hire(db, world, company, candidate_id):
     cand = db.execute("SELECT * FROM candidates WHERE id = ? AND company_id = ?", (candidate_id, company["id"])).fetchone()
     if cand is None:
         raise StaffError("Candidate is no longer available")
     count = db.execute("SELECT COUNT(*) FROM employees WHERE company_id = ?", (company["id"],)).fetchone()[0]
-    if count >= cfg.MAX_EMPLOYEES:
-        raise StaffError("Maximum %d employees" % cfg.MAX_EMPLOYEES)
+    limit = max_employees(db, company["id"])
+    if count >= limit:
+        raise StaffError("The team is full (%d people). Build more datacenters and racks to grow it." % limit)
     _pay(db, world, company, cand["hire_cost_cents"], "hiring", "Hired " + cand["name"])
     cur = db.execute(
         "INSERT INTO employees (company_id, name, role, skill, salary_cents_per_tick, hired_tick) VALUES (?, ?, ?, ?, ?, ?)",
@@ -143,6 +192,8 @@ DEFAULT_POLICY = {
     "budget_pct": 50,                # a single plan may cost at most this share of the cash
     "redundancy": "auto",            # new racks: auto (by admin skill) | always | never
     "auto_approve": "off",           # off | cheap (small plans, no new datacenters) | all (within the cost limit)
+    "auto_hire": "off",              # off | on: hire from the job market where the company is short of people
+    "hire_min_skill": 1,             # auto-hire only takes candidates with at least this skill
     "priorities": {"capacity": 2, "reliability": 2, "infrastructure": 2, "expansion": 1, "cleanup": 2, "modernize": 1},
 }
 CAT_RESOURCE = {"server_cpu": "cpu", "server_storage": "storage_tb", "server_gpu": "gpu"}
@@ -165,7 +216,7 @@ def set_policy(db, company_id, data):
     policy = get_policy(db, company_id)
     choices = {"rack_style": ("pure", "mixed"), "focus": ("auto", "cpu", "storage_tb", "gpu"),
                "budget_pct": (25, 50, 90), "redundancy": ("auto", "always", "never"),
-               "auto_approve": ("off", "cheap", "all")}
+               "auto_approve": ("off", "cheap", "all"), "auto_hire": ("off", "on"), "hire_min_skill": (1, 2, 3)}
     for key, allowed in choices.items():
         if key in data:
             if data[key] not in allowed or isinstance(data[key], bool):
@@ -949,6 +1000,7 @@ def run_auto_approve(db, world, company, tick=None):
 
 def daily(db, world, company, tick, rng):
     ensure_candidates(db, company["id"], tick, rng)
+    run_auto_hire(db, world, company, tick)
     sales_accept(db, world, company, tick)
     db.execute("UPDATE proposals SET status = 'expired' WHERE company_id = ? AND status = 'open' AND expires_tick < ?", (company["id"], tick))
     db.execute("DELETE FROM work_orders WHERE company_id = ? AND status IN ('done', 'failed') AND created_tick < ?", (company["id"], tick - 24 * 10))
@@ -983,7 +1035,8 @@ def team_state(db, company, tick):
                        "est_ticks": p["est_ticks"], "expires_tick": p["expires_tick"], **json.loads(p["summary_json"])} for p in props],
         "orders": [{"id": o["id"], "title": o["title"], "status": o["status"], "progress": o["progress"], "kind": o["kind"],
                     "dc_id": json.loads(o["plan_json"]).get("dc_id"), "total_ticks": o["total_ticks"], "employee": o["e_name"]} for o in orders],
-        "max_employees": cfg.MAX_EMPLOYEES,
+        "max_employees": max_employees(db, company["id"]),
+        "targets": staff_targets(db, company["id"]),
         "auto_accept": auto_accept_enabled(db, company["id"]),
         "policy": get_policy(db, company["id"]),
         "proposal_interval_days": cfg.PROPOSAL_INTERVAL_TICKS // 24,

@@ -125,7 +125,10 @@ XP_PER_LEVEL = 8                        # work orders / proposals needed per ski
 CANDIDATE_POOL = 5
 SALES_RATE_BONUS_PER_SKILL = 0.03        # better prices negotiated by skilled sales staff
 CANDIDATE_LIFETIME_TICKS = 5 * 24
-MAX_EMPLOYEES = 30
+MAX_EMPLOYEES = 200                     # absolute upper bound; the real limit grows with the company (staff.max_employees)
+EMPLOYEES_BASE = 5
+EMPLOYEES_PER_DC = 3
+EMPLOYEES_PER_RACK = 1
 TECH_SPEED_PER_SKILL = 0.35             # work speed = 1 + 0.35 * (skill - 1)
 NO_TECH_REPAIR_FACTOR = 2.0             # incident duration multiplier without any technician
 ADMIN_INCIDENT_REDUCTION = 0.06         # per admin skill point, at most 60 %
