@@ -108,14 +108,16 @@ function marketView(s) {
     ...s.rivals.map((r) => ({ id: r.id, name: r.name, color: r.color, worth: r.net_worth_cents }))].sort((a, b) => b.worth - a.worth);
   const box = h("div", {}, h("h3", {}, "Net worth ranking"));
   rows.forEach((r, i) => box.append(h("div", { class: "stat" }, h("span", { style: `color:${r.color}` }, `${i + 1}. ${r.name}`), h("span", {}, money(r.worth)))));
-  box.append(h("h3", {}, "Market share per region"));
+  box.append(h("h3", {}, "Goals"), goalsView(s));
+  const regionsBox = h("details", {}, h("summary", {}, "Market share per region"));
+  box.append(regionsBox);
   const colorOf = new Map(rows.map((r) => [r.id, r.color]));
   for (const region of s.regions) {
     const shares = s.market_share.filter((m) => m.region_id === region.id);
     const bars = h("div", { style: "display:flex;height:10px;border-radius:5px;overflow:hidden;background:#1b2433;margin:.2rem 0 .6rem" },
       shares.map((m) => h("i", { style: `width:${(m.share * 100).toFixed(1)}%;background:${colorOf.get(m.company_id)}`, title: pct(m.share, 1) })));
     const mine = shares.find((m) => m.company_id === s.company.id);
-    box.append(h("div", { class: "stat" }, h("span", {}, region.name), h("span", { class: "muted" }, mine ? "you: " + pct(mine.share, 1) : "")), bars);
+    regionsBox.append(h("div", { class: "stat" }, h("span", {}, region.name), h("span", { class: "muted" }, mine ? "you: " + pct(mine.share, 1) : "")), bars);
   }
   return box;
 }

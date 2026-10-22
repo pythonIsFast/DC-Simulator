@@ -37,7 +37,7 @@ function drawEarthTexture(polys) {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d");
   const sea = ctx.createLinearGradient(0, 0, 0, H);
-  sea.addColorStop(0, "#0e2a4a"); sea.addColorStop(0.5, "#0b3a63"); sea.addColorStop(1, "#0e2a4a");
+  sea.addColorStop(0, "#0c1f33"); sea.addColorStop(0.5, "#0f2c47"); sea.addColorStop(1, "#0c1f33");
   ctx.fillStyle = sea;
   ctx.fillRect(0, 0, W, H);
 
@@ -63,12 +63,12 @@ function drawEarthTexture(polys) {
   };
   path();
   const land = ctx.createLinearGradient(0, 0, 0, H);
-  land.addColorStop(0, "#e8eef2"); land.addColorStop(0.15, "#5d8a5a"); land.addColorStop(0.5, "#6f9a5c");
-  land.addColorStop(0.85, "#5d8a5a"); land.addColorStop(1, "#f2f6f8");
+  land.addColorStop(0, "#dfe7ee"); land.addColorStop(0.15, "#3d5a4c"); land.addColorStop(0.5, "#46664f");
+  land.addColorStop(0.85, "#3d5a4c"); land.addColorStop(1, "#eef3f7");
   ctx.fillStyle = land;
   ctx.fill("evenodd");
   ctx.lineWidth = 2;
-  ctx.strokeStyle = "rgba(200,235,200,.55)";
+  ctx.strokeStyle = "rgba(160,210,190,.4)";
   ctx.stroke();
   return canvas;
 }
@@ -140,9 +140,9 @@ export function createGlobeView(canvas, labelsRoot, onPick) {
       el.textContent = r.name;
       el.addEventListener("click", () => onPick(r.id));
       labelsRoot.append(el);
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.011, 12, 12), new THREE.MeshBasicMaterial({ color: 0x4ea1ff }));
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.011, 12, 12), new THREE.MeshBasicMaterial({ color: 0x9fb3c8 }));
       dot.position.copy(pos);
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.026, 32), new THREE.MeshBasicMaterial({ color: 0x4ea1ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.026, 32), new THREE.MeshBasicMaterial({ color: 0x9fb3c8, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
       ring.position.copy(pos);
       ring.lookAt(pos.clone().multiplyScalar(2));
       markers.add(dot, ring);
@@ -160,7 +160,7 @@ export function createGlobeView(canvas, labelsRoot, onPick) {
         const mid = a.pos.clone().add(b.pos).normalize().multiplyScalar(1 + 0.25 * a.pos.angleTo(b.pos));
         const pts = new THREE.QuadraticBezierCurve3(a.pos, mid, b.pos).getPoints(48);
         arcs.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({ color: 0x3fb950, transparent: true, opacity: 0.7 })));
+          new THREE.LineBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.7 })));
       }
     }
   }
@@ -176,7 +176,7 @@ export function createGlobeView(canvas, labelsRoot, onPick) {
         l.el.className = "region-label" + (mine.has(id) ? " mine" : "") + (hasEvent ? " event" : "") + (id === selectedId ? " selected" : "");
         l.el.textContent = l.region.name + (dcCount ? ` (${dcCount})` : "");
         l.region = state.regions.find((r) => r.id === id) || l.region;
-        const color = hasEvent ? 0xe3b341 : mine.has(id) ? 0x3fb950 : 0x4ea1ff;
+        const color = hasEvent ? 0xfbbf24 : mine.has(id) ? 0x2dd4bf : 0x9fb3c8;
         l.dot.material.color.setHex(color);
         l.ring.material.color.setHex(color);
       }

@@ -53,6 +53,6 @@ export function renderGuide() {
   el.replaceChildren(
     h("b", {}, title), h("div", {}, text),
     h("div", { class: "muted", style: "margin-top:.3rem;font-size:.8rem" },
-      `Per hour: revenue ${money2(b.revenue || 0)} | power ${money2(-(b.power || 0))} | rent ${money2(-(b.rent || 0))} | staff ${money2(-(b.staff || 0))} | costs total ${money2(costs)}`),
+      `Per hour: revenue ${money2(b.revenue || 0)} | costs ${money2(costs)}`),
   );
 }

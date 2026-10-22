@@ -98,7 +98,7 @@ export function createRoomView(canvas, tooltip, handlers) {
       const p = slotPos(s);
       tmpM.makeRotationX(-Math.PI / 2).setPosition(p.x, 0.03, p.z);
       slotMesh.setMatrixAt(i, tmpM);
-      slotMesh.setColorAt(i, tmpC.set(0x4ea1ff));
+      slotMesh.setColorAt(i, tmpC.set(0x2dd4bf));
     });
     for (const m of [rackMesh, slotMesh]) {
       m.instanceMatrix.needsUpdate = true;
@@ -152,7 +152,7 @@ export function createRoomView(canvas, tooltip, handlers) {
   }
 
   function setHover(next) {
-    if (hover && hover.type === "slot") { slotMesh.setColorAt(hover.index, tmpC.set(0x4ea1ff)); slotMesh.instanceColor.needsUpdate = true; }
+    if (hover && hover.type === "slot") { slotMesh.setColorAt(hover.index, tmpC.set(0x2dd4bf)); slotMesh.instanceColor.needsUpdate = true; }
     hover = next;
     if (hover && hover.type === "slot") { slotMesh.setColorAt(hover.index, tmpC.set(0xffffff)); slotMesh.instanceColor.needsUpdate = true; }
     canvas.style.cursor = hover ? "pointer" : "";
