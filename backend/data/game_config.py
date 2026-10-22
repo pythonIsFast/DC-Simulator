@@ -116,13 +116,14 @@ OFFER_NAMES_B = ["Games", "Shop", "Media", "Bank", "Labs", "Mobility", "Health",
                  "Logistics", "Robotics", "Learning", "Travel", "Foods", "Energy", "Social"]
 
 # --- Staff (technicians build approved plans and repair faster, admins plan and prevent incidents) ---
-ROLES = ("technician", "admin")
-ROLE_BASE_SALARY_CENTS = {"technician": 1_400, "admin": 2_000}   # per tick at skill 1
+ROLES = ("technician", "admin", "sales")
+ROLE_BASE_SALARY_CENTS = {"technician": 1_400, "admin": 2_000, "sales": 1_700}   # per tick at skill 1
 SALARY_PER_SKILL = 0.3                  # salary = base * (0.7 + 0.3 * skill)
 HIRE_COST_TICKS = 40                    # signing cost = salary * this
 MAX_SKILL = 5
 XP_PER_LEVEL = 8                        # work orders / proposals needed per skill level (times current skill)
-CANDIDATE_POOL = 4
+CANDIDATE_POOL = 5
+SALES_RATE_BONUS_PER_SKILL = 0.03        # better prices negotiated by skilled sales staff
 CANDIDATE_LIFETIME_TICKS = 5 * 24
 MAX_EMPLOYEES = 30
 TECH_SPEED_PER_SKILL = 0.35             # work speed = 1 + 0.35 * (skill - 1)

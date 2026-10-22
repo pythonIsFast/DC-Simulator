@@ -202,7 +202,7 @@ const EVENT_STYLE = {
   incident: "bad", breaker_trip: "bad", thermal_shutdown: "bad", contract_breached: "bad",
   grid_outage: "warn", heatwave: "warn", power_spike: "warn", sla_warning: "warn",
   contract_completed: "good", incident_absorbed: "good", rack_recovered: "good", market_boom: "good",
-  work_done: "good", promotion: "good", work_failed: "bad", proposal: "",
+  work_done: "good", promotion: "good", sales_signed: "good", work_failed: "bad", proposal: "",
 };
 
 bus.on("events", ({ events, initial }) => {

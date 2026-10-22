@@ -377,6 +377,15 @@ def approve_proposal(db, world, company, payload):
         raise CommandError(str(exc))
 
 
+@command("set_auto_accept")
+def set_auto_accept(db, world, company, payload):
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        raise CommandError("enabled must be true or false")
+    staff.set_auto_accept(db, company["id"], enabled)
+    return {"enabled": enabled}
+
+
 @command("reject_proposal")
 def reject_proposal(db, world, company, payload):
     try:

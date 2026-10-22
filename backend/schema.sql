@@ -291,3 +291,9 @@ CREATE TABLE IF NOT EXISTS work_orders (
     created_tick INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_orders_company ON work_orders(company_id, status);
+
+-- Per-company switches (added without a schema bump: new table only).
+CREATE TABLE IF NOT EXISTS company_settings (
+    company_id  INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+    auto_accept INTEGER NOT NULL DEFAULT 1                -- sales staff signs contracts automatically
+);

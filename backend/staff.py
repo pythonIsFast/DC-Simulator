@@ -474,8 +474,63 @@ def process_orders(db, world, company, tick):
         db.execute("UPDATE employees SET status = 'idle', order_id = NULL WHERE id = ?", (o["employee_id"],))
 
 
+def auto_accept_enabled(db, company_id):
+    row = db.execute("SELECT auto_accept FROM company_settings WHERE company_id = ?", (company_id,)).fetchone()
+    return True if row is None else bool(row["auto_accept"])
+
+
+def set_auto_accept(db, company_id, enabled):
+    db.execute("INSERT INTO company_settings (company_id, auto_accept) VALUES (?, ?)"
+               " ON CONFLICT(company_id) DO UPDATE SET auto_accept = excluded.auto_accept", (company_id, 1 if enabled else 0))
+
+
+def sales_accept(db, world, company, tick):
+    """Sales staff signs open offers the company can really serve (never overbooks), best price per unit first."""
+    import sim   # local import: sim imports this module
+    sales = db.execute("SELECT * FROM employees WHERE company_id = ? AND role = 'sales' ORDER BY id", (company["id"],)).fetchall()
+    if not sales or not auto_accept_enabled(db, company["id"]):
+        return 0
+    budget = sum(e["skill"] for e in sales)
+    dcs = sim.load_assets(db, company["id"])
+    if not dcs:
+        return 0
+    for dc in dcs:
+        for rack in dc["racks"]:
+            rack["stats"] = rk.rack_stats(rack["items"])
+    active = db.execute("SELECT * FROM contracts WHERE company_id = ? AND status = 'active'", (company["id"],)).fetchall()
+    cap = capacity.region_capacity(dcs, active)
+    active_n = len(active)
+    offers = db.execute("SELECT * FROM contracts WHERE world_id = ? AND status = 'offered' ORDER BY revenue_cents_per_tick * 1.0 / units_eq DESC, id",
+                        (world["id"],)).fetchall()
+    signed = 0
+    for o in offers:
+        if signed >= budget or active_n >= cfg.MAX_ACTIVE_CONTRACTS:
+            break
+        c = cap.get(o["region_id"])
+        if c is None or c[o["resource"]]["red_free" if o["premium"] else "free"] < o["units"]:
+            continue
+        seller = sales[signed % len(sales)]
+        rate = int(o["revenue_cents_per_tick"] * (1.0 + cfg.SALES_RATE_BONUS_PER_SKILL * seller["skill"]))
+        db.execute("UPDATE contracts SET company_id = ?, status = 'active', start_tick = ?, end_tick = ?, sla_fail_streak = 0,"
+                   " revenue_cents_per_tick = ? WHERE id = ?", (company["id"], tick, tick + o["duration_ticks"], rate, o["id"]))
+        c[o["resource"]]["free"] -= o["units"]
+        if o["premium"]:
+            c[o["resource"]]["red_free"] -= o["units"]
+        else:
+            c[o["resource"]]["red_free"] = min(c[o["resource"]]["red_free"], c[o["resource"]]["free"])
+        signed += 1
+        active_n += 1
+        add_event(db, world["id"], tick, "sales_signed", "%s signed '%s' (%s/h)" % (seller["name"], o["name"], "{:,.2f}".format(rate / 100)),
+                  company_id=company["id"], region_id=o["region_id"])
+        _gain_xp(db, world, company, seller["id"], tick)
+    if signed:
+        market.compute_market(db, world["id"], tick, persist=True)
+    return signed
+
+
 def daily(db, world, company, tick, rng):
     ensure_candidates(db, company["id"], tick, rng)
+    sales_accept(db, world, company, tick)
     db.execute("UPDATE proposals SET status = 'expired' WHERE company_id = ? AND status = 'open' AND expires_tick < ?", (company["id"], tick))
     db.execute("DELETE FROM work_orders WHERE company_id = ? AND status IN ('done', 'failed') AND created_tick < ?", (company["id"], tick - 24 * 10))
     admins = db.execute("SELECT * FROM employees WHERE company_id = ? AND role = 'admin'", (company["id"],)).fetchall()
@@ -507,4 +562,6 @@ def team_state(db, company, tick):
         "orders": [{"id": o["id"], "title": o["title"], "status": o["status"], "progress": o["progress"],
                     "total_ticks": o["total_ticks"], "employee": o["e_name"]} for o in orders],
         "max_employees": cfg.MAX_EMPLOYEES,
+        "auto_accept": auto_accept_enabled(db, company["id"]),
+        "sales_per_day": sum(e["skill"] for e in emps if e["role"] == "sales"),
     }

@@ -6,6 +6,7 @@ import { sfx } from "./audio.js";
 const ROLE = {
   technician: ["Technician", "Builds approved plans. Repairs failures faster."],
   admin: ["Admin", "Plans racks, datacenters and upgrades. Prevents failures."],
+  sales: ["Sales", "Signs customer contracts for you and negotiates better prices."],
 };
 const stars = (n) => "★".repeat(n) + "☆".repeat(5 - n);
 const hours = (t) => `${Math.max(1, Math.round(t))} h`;
@@ -51,6 +52,14 @@ export function teamView(s) {
   const box = h("div", {});
   box.append(h("div", { class: "tiles" },
     tile("Team", `${t.employees.length}/${t.max_employees}`), tile("Salaries", `${money2(t.salary_cents_per_tick)}/h`), tile("Open plans", String(t.proposals.length))));
+
+  if (t.employees.some((e) => e.role === "sales")) {
+    box.append(h("div", { class: "item", style: "margin-top:.6rem" },
+      h("div", { class: "title" }, h("span", {}, "Auto-accept contracts"), h("span", { class: t.auto_accept ? "good" : "muted" }, t.auto_accept ? "ON" : "OFF")),
+      h("div", { class: "sub" }, `Sales signs up to ${t.sales_per_day} offers per day, only if you have the free capacity.`),
+      h("div", { class: "row", style: "justify-content:flex-end;margin-top:.3rem" },
+        h("button", { class: "secondary small", onclick: () => run("set_auto_accept", { enabled: !t.auto_accept }, "click") }, t.auto_accept ? "Turn off" : "Turn on"))));
+  }
 
   box.append(h("h3", {}, "Plans from your admins"));
   if (!hasAdmin) box.append(h("p", { class: "muted" }, "Hire an admin: they suggest racks (with an exact layout), new datacenters and upgrades. You decide what gets built."));
