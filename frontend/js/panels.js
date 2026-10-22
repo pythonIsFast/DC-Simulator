@@ -184,8 +184,11 @@ function buildRackPanel(root, found) {
   const detailsBox = h("div", {});
   const palette = h("div", {});
   for (const [title, cats] of GROUPS) {
-    palette.append(h("h3", {}, title));
-    store.hw.list.filter((x) => cats.includes(x.category)).forEach((hw) => palette.append(hwCard(hw)));
+    // Rarely needed extras stay collapsed.
+    const target = title === "Extras" ? h("details", {}, h("summary", {}, title)) : palette;
+    if (title !== "Extras") palette.append(h("h3", {}, title));
+    store.hw.list.filter((x) => cats.includes(x.category)).forEach((hw) => target.append(hwCard(hw)));
+    if (title === "Extras") palette.append(target);
   }
   const dcId = found.dc.id;
   const actions = h("details", {}, h("summary", {}, "Rack actions"),

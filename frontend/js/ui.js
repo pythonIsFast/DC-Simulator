@@ -68,7 +68,6 @@ export function resetMoney() { shownCash = null; }
 export function renderHud() {
   const s = store.state;
   if (!s) return;
-  $("company-name-hud").textContent = s.company.name;
   const net = s.company.revenue_cents_per_tick - s.company.expense_cents_per_tick;
   const netEl = $("net");
   netEl.textContent = `${signedMoney(net)}/h`;

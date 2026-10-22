@@ -12,7 +12,7 @@ const log = [];        // newest first
 export function addLog(events) {
   for (const e of events) log.unshift(e);
   log.length = Math.min(log.length, 120);
-  if (open === "log") renderDrawer(true);
+  if (open === "market") renderDrawer(true);
 }
 
 export function toggleDrawer(name) {
@@ -29,12 +29,12 @@ export function renderDrawer(force = false) {
   const s = store.state;
   if (!open || !s) { el.hidden = true; return; }
   const sig = open + tab + JSON.stringify(open === "contracts" ? [s.offers, s.contracts, s.datacenters.map((d) => [d.region_id, d.racks.map((r) => [r.online, r.stats.cpu, r.stats.storage_tb, r.stats.gpu])])]
-    : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents] : open === "goals" ? s.milestones : log.length);
+    : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents, log.length] : open === "goals" ? s.milestones : log.length);
   if (!force && sig === lastSig) return;
   lastSig = sig;
   el.hidden = false;
   const body = { contracts: contractsView, market: marketView, log: logView, goals: goalsView }[open](s);
-  el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Market", log: "Event log", goals: "Goals" }[open]),
+  el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Overview", log: "Event log", goals: "Goals" }[open]),
     h("button", { class: "secondary small", onclick: () => toggleDrawer(open) }, "Close")), body);
 }
 
@@ -111,6 +111,7 @@ function marketView(s) {
   const box = h("div", {}, h("h3", {}, "Net worth ranking"));
   rows.forEach((r, i) => box.append(h("div", { class: "stat" }, h("span", { style: `color:${r.color}` }, `${i + 1}. ${r.name}`), h("span", {}, money(r.worth)))));
   box.append(h("h3", {}, "Goals"), goalsView(s));
+  box.append(h("details", {}, h("summary", {}, "Recent events"), logView()));
   const regionsBox = h("details", {}, h("summary", {}, "Market share per region"));
   box.append(regionsBox);
   const colorOf = new Map(rows.map((r) => [r.id, r.color]));

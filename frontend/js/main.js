@@ -244,10 +244,10 @@ $("speed-buttons").addEventListener("click", (ev) => {
 document.querySelectorAll("[data-drawer]").forEach((b) => b.addEventListener("click", () => toggleDrawer(b.dataset.drawer)));
 $("btn-mute").addEventListener("click", () => {
   const muted = toggleMute();
-  $("btn-mute").textContent = muted ? "Muted" : "Sound";
+  $("btn-mute").textContent = muted ? "\u{1F507}" : "\u{1F50A}";
   updateFan();
 });
-$("btn-mute").textContent = isMuted() ? "Muted" : "Sound";
+$("btn-mute").textContent = isMuted() ? "\u{1F507}" : "\u{1F50A}";
 
 window.addEventListener("keydown", (ev) => {
   if (!store.state || ["INPUT", "SELECT", "TEXTAREA"].includes(ev.target.tagName)) return;
