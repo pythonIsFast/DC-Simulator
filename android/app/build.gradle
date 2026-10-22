@@ -1,0 +1,54 @@
+plugins {
+    id "com.android.application"
+    id "com.chaquo.python"
+}
+
+android {
+    namespace "com.dcsimulator.game"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.dcsimulator.game"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0"
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version "3.12"
+        pip {
+            install "Flask>=3.0"
+            install "PyJWT>=2.8"
+        }
+    }
+    sourceSets {
+        main {
+            srcDir "../../backend"
+        }
+    }
+}
+
+// Frontend and DB schema are shipped as plain assets; the app copies them to
+// internal storage on first start (Flask needs real file paths).
+def gameAssetsDir = layout.buildDirectory.dir("generated/gameAssets")
+
+def copyGameAssets = tasks.register("copyGameAssets", Copy) {
+    from("../../frontend") { into "frontend" }
+    from("../../backend/schema.sql")
+    into gameAssetsDir
+}
+
+android.sourceSets.main.assets.srcDir(gameAssetsDir)
+
+tasks.named("preBuild") { dependsOn copyGameAssets }

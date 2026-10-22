@@ -7,7 +7,10 @@ from flask import current_app, g
 
 from data.hardware import HARDWARE
 
-SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
+SCHEMA_PATH = os.environ.get(
+    "DC_SCHEMA_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql"),
+)
 SCHEMA_VERSION = 2  # keep in sync with PRAGMA user_version in schema.sql
 
 

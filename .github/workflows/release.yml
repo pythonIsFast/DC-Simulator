@@ -46,20 +46,63 @@ jobs:
           Stop-Process -Id $p.Id -Force
           if ($r.status -ne "ok") { throw "health check failed" }
 
-      - name: Zip
+      - name: Collect files
         shell: pwsh
-        run: Compress-Archive -Path dist\DatacenterTycoon.exe -DestinationPath DatacenterTycoon-windows-portable.zip
+        run: |
+          New-Item -ItemType Directory out | Out-Null
+          Copy-Item dist\DatacenterTycoon.exe out\
+          Compress-Archive -Path dist\DatacenterTycoon.exe -DestinationPath out\DatacenterTycoon-windows-portable.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: DatacenterTycoon-windows-portable
-          path: DatacenterTycoon-windows-portable.zip
+          path: out/*
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Chaquopy needs a build Python matching its target version (3.12).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        working-directory: android
+        run: gradle --no-daemon assembleDebug
+
+      - name: Collect files
+        run: |
+          mkdir out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/DatacenterTycoon.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DatacenterTycoon-android
+          path: out/*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
 
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            DatacenterTycoon-windows-portable.zip
-            dist/DatacenterTycoon.exe
+          files: release/*
           generate_release_notes: true
