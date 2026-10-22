@@ -2,6 +2,8 @@
 import * as THREE from "three";
 import { store } from "./store.js";
 import { canPlaceItems } from "./rules.js";
+import { frontTexture, railTexture, perforatedTexture, backTexture } from "./faceplates.js";
+import { applyEnvironment } from "./stage.js";
 
 const U_H = 0.0445;       // height of one rack unit in metres
 const Y0 = 0.09;          // bottom of U1
@@ -9,133 +11,10 @@ const FRONT_Z = 0.25;
 const RACK_U = 42;
 const centerY = (uStart, u) => Y0 + (uStart - 1 + u / 2) * U_H;
 
-const CAT_COLOR = {
-  server_cpu: "#2b3a55", server_storage: "#3a4150", server_gpu: "#42305f", switch_tor: "#1f5252",
-  pdu: "#5a4220", ups: "#5a2230", patch_panel: "#4a4f57", cable_mgmt: "#2b2f36", blank: "#14171c",
-};
-
-function spec(hw) {
-  const a = hw.attrs;
-  const parts = [];
-  if (a.cpu) parts.push(`${a.cpu} cpu units`);
-  if (a.storage_tb) parts.push(`${a.storage_tb} TB`);
-  if (a.gpu) parts.push(`${a.gpu} gpu units`);
-  if (hw.ports) parts.push(`${hw.ports} ports`);
-  if (a.max_w) parts.push(`${(a.max_w / 1000).toFixed(1)} kW`);
-  if (a.ups_w) parts.push(`${(a.ups_w / 1000).toFixed(0)} kW backup`);
-  if (hw.power_w) parts.push(`${hw.power_w} W`);
-  return parts.join(" | ");
-}
-
-const texCache = new Map();
-function frontTexture(hw) {
-  if (texCache.has(hw.code)) return texCache.get(hw.code);
-  const u = hw.u_height, W = 1024, H = 128 * u;
-  const c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const g = c.getContext("2d");
-  g.fillStyle = CAT_COLOR[hw.category] || "#333";
-  g.fillRect(0, 0, W, H);
-  g.fillStyle = "rgba(255,255,255,.14)"; g.fillRect(0, 0, W, 4);
-  g.fillStyle = "rgba(0,0,0,.4)"; g.fillRect(0, H - 4, W, 4);
-  g.fillStyle = "#15181d"; g.fillRect(0, 0, 28, H); g.fillRect(W - 28, 0, 28, H);
-  g.fillStyle = "#9aa4b2";
-  for (let i = 0; i < u; i++) for (const x of [14, W - 14]) { g.beginPath(); g.arc(x, i * 128 + 64, 6, 0, Math.PI * 2); g.fill(); }
-  if (hw.category !== "blank") {
-    g.fillStyle = "#f0f6fc"; g.font = "bold 34px system-ui, sans-serif"; g.textBaseline = "middle";
-    g.fillText(hw.name, 52, Math.min(H / 2 - 14, 64 - 14));
-    g.fillStyle = "rgba(240,246,252,.65)"; g.font = "24px system-ui, sans-serif";
-    g.fillText(spec(hw), 52, Math.min(H / 2 + 22, 64 + 22));
-  }
-  decor(g, hw, W, H);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  texCache.set(hw.code, tex);
-  return tex;
-}
-
-function decor(g, hw, W, H) {
-  const x0 = 500, x1 = W - 60;
-  g.fillStyle = "rgba(0,0,0,.45)";
-  switch (hw.category) {
-    case "server_cpu":
-      for (let r = 0; r < hw.u_height * 3; r++) for (let i = 0; i < 20; i++) g.fillRect(x0 + i * 22, 16 + r * 34, 12, 20);
-      break;
-    case "server_storage": {
-      const rows = hw.u_height >= 4 ? 4 : 2, cols = 6;
-      const bw = (x1 - x0) / cols - 8, bh = (H - 40) / rows - 8;
-      for (let r = 0; r < rows; r++) for (let i = 0; i < cols; i++) {
-        g.fillRect(x0 + i * (bw + 8), 20 + r * (bh + 8), bw, bh);
-        g.fillStyle = "#58a6ff"; g.fillRect(x0 + i * (bw + 8) + 6, 24 + r * (bh + 8), 8, 5); g.fillStyle = "rgba(0,0,0,.45)";
-      }
-      break;
-    }
-    case "server_gpu": {
-      const n = hw.u_height >= 4 ? 4 : 2, r = Math.min(H / 2 - 14, 52);
-      for (let i = 0; i < n; i++) {
-        const cx = x0 + 60 + i * ((x1 - x0 - 60) / Math.max(1, n - 1)), cy = H / 2;
-        g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-        g.strokeStyle = "#7ee787"; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, r - 6, 0, Math.PI * 2); g.stroke();
-      }
-      break;
-    }
-    case "switch_tor": {
-      const perRow = 24, rows = Math.ceil(hw.ports / perRow);
-      for (let r = 0; r < rows; r++) for (let i = 0; i < Math.min(perRow, hw.ports - r * perRow); i++)
-        g.fillRect(x0 + i * 20, (rows === 1 ? 50 : 24 + r * 44), 15, 22);
-      break;
-    }
-    case "pdu":
-      for (let i = 0; i < 8; i++) { g.beginPath(); g.arc(x0 + 30 + i * 50, 64, 15, 0, Math.PI * 2); g.fill(); }
-      break;
-    case "ups":
-      g.fillStyle = "#0b3d1d"; g.fillRect(x0, 28, 200, H - 56);
-      g.fillStyle = "#3fb950"; g.font = "bold 40px monospace"; g.fillText("100 %", x0 + 40, H / 2);
-      break;
-    case "patch_panel":
-      for (let i = 0; i < 24; i++) { g.beginPath(); g.arc(x0 + 12 + i * 20, 64, 7, 0, Math.PI * 2); g.fill(); }
-      break;
-    case "cable_mgmt":
-      g.strokeStyle = "rgba(255,255,255,.25)"; g.lineWidth = 3;
-      for (let i = 0; i < 18; i++) { g.beginPath(); g.moveTo(x0 + i * 26, 24); g.lineTo(x0 + i * 26, 104); g.stroke(); }
-      break;
-    default:
-  }
-}
-
-function numberTexture() {
-  const c = document.createElement("canvas");
-  c.width = 64; c.height = RACK_U * 24;
-  const g = c.getContext("2d");
-  g.fillStyle = "#0e1218"; g.fillRect(0, 0, 64, c.height);
-  g.font = "13px monospace"; g.textBaseline = "middle"; g.textAlign = "center";
-  for (let n = 1; n <= RACK_U; n++) {
-    const y = c.height - (n - 0.5) * 24;
-    g.fillStyle = n % 5 === 0 ? "#e6edf3" : "#6b7787";
-    g.fillText(String(n), 32, y);
-    g.fillStyle = "#2a3342"; g.fillRect(0, c.height - n * 24, 64, 1);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-function backTexture() {
-  const c = document.createElement("canvas");
-  c.width = 32; c.height = RACK_U * 16;
-  const g = c.getContext("2d");
-  g.fillStyle = "#0a0d12"; g.fillRect(0, 0, 32, c.height);
-  g.fillStyle = "#161c26";
-  for (let n = 0; n < RACK_U; n++) g.fillRect(0, n * 16 + 15, 32, 1);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
 
 const matCache = new Map();
 function frontMaterial(hw) {
-  if (!matCache.has(hw.code)) matCache.set(hw.code, new THREE.MeshStandardMaterial({ map: frontTexture(hw), roughness: 0.5, metalness: 0.3 }));
+  if (!matCache.has(hw.code)) matCache.set(hw.code, new THREE.MeshStandardMaterial({ map: frontTexture(hw), roughness: 0.42, metalness: 0.55 }));
   return matCache.get(hw.code);
 }
 
@@ -150,38 +29,61 @@ export function createRackView(canvas, tooltip, handlers) {
   const camDist = 3.5;
   let camYaw = 0, camPitch = 0.05, wantYaw = 0, wantPitch = 0.05;
 
-  scene.add(new THREE.AmbientLight(0xa8b4cc, 0.9));
-  const key = new THREE.DirectionalLight(0xffffff, 1.2);
-  key.position.set(1.5, 3, 4);
+  applyEnvironment(scene);                       // reflections for the metal parts
+  scene.add(new THREE.AmbientLight(0x8fa0bf, 0.18));
+  const key = new THREE.DirectionalLight(0xfff4e6, 2.2);
+  key.position.set(1.8, 3.2, 3.5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.left = -1.6; key.shadow.camera.right = 1.6; key.shadow.camera.top = 2.4; key.shadow.camera.bottom = -0.3;
+  key.shadow.camera.near = 0.5; key.shadow.camera.far = 9;
+  key.shadow.bias = -0.0004; key.shadow.normalBias = 0.01;
   scene.add(key);
-  const fill = new THREE.PointLight(0x4ea1ff, 0.6, 6);
-  fill.position.set(-1.5, 1.2, 1.5);
+  const fill = new THREE.PointLight(0x5aa9ff, 0.8, 6);
+  fill.position.set(-1.6, 1.2, 1.8);
   scene.add(fill);
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshStandardMaterial({ color: 0x10151d, roughness: 0.95 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshStandardMaterial({ color: 0x151a22, roughness: 0.32, metalness: 0.35 }));
   floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
   scene.add(floor);
-  scene.add(new THREE.GridHelper(10, 40, 0x1f2937, 0x151b25));
 
-  // Rack frame
+  // Rack frame: four rails with square holes, perforated side panels, plinth with casters
   const frame = new THREE.Group();
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1f28, metalness: 0.7, roughness: 0.4 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x1b2028, metalness: 0.85, roughness: 0.38 });
   const height = RACK_U * U_H + 2 * (Y0 - 0.01);
-  for (const x of [-0.255, 0.255]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.04, height, 0.6), frameMat);
-    post.position.set(x, height / 2 + 0.0, 0);
-    frame.add(post);
+  const uSpan = RACK_U * U_H, uMid = Y0 + uSpan / 2;
+  const rail = railTexture();
+  for (const x of [-0.256, 0.256]) {
+    for (const z of [0.27, -0.27]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, height, 0.03), frameMat);
+      post.position.set(x, height / 2, z);
+      post.castShadow = true;
+      frame.add(post);
+    }
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.03, uSpan), new THREE.MeshStandardMaterial({ map: rail, metalness: 0.6, roughness: 0.5 }));
+    face.position.set(x, uMid, 0.27 + 0.0151);
+    frame.add(face);
   }
-  for (const y of [0.04, height - 0.04 + 0.0]) {
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.62), frameMat);
-    plate.position.set(0, y, 0);
-    frame.add(plate);
+  for (const side of [-1, 1]) {
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.6, height), new THREE.MeshStandardMaterial({ map: perforatedTexture(true, [3, 12]), metalness: 0.5, roughness: 0.6, side: THREE.DoubleSide }));
+    panel.rotation.y = Math.PI / 2;
+    panel.position.set(side * 0.272, height / 2, 0);
+    panel.receiveShadow = true;
+    frame.add(panel);
   }
-  const numbers = new THREE.Mesh(new THREE.PlaneGeometry(0.03, RACK_U * U_H), new THREE.MeshBasicMaterial({ map: numberTexture() }));
-  numbers.position.set(-0.228, Y0 + (RACK_U * U_H) / 2, FRONT_Z + 0.002);
-  frame.add(numbers);
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.47, RACK_U * U_H), new THREE.MeshBasicMaterial({ map: backTexture() }));
-  back.position.set(0, Y0 + (RACK_U * U_H) / 2, -0.28);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.03, 0.6), frameMat);
+  top.position.set(0, height, 0);
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.07, 0.62), frameMat);
+  plinth.position.set(0, 0.06, 0);
+  frame.add(top, plinth);
+  for (const x of [-0.25, 0.25]) for (const z of [-0.27, 0.27]) {
+    const caster = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.02, 16), new THREE.MeshStandardMaterial({ color: 0x0a0b0d, roughness: 0.8 }));
+    caster.position.set(x, 0.01, z);
+    frame.add(caster);
+  }
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.47, uSpan), new THREE.MeshBasicMaterial({ map: backTexture() }));
+  back.position.set(0, uMid, -0.26);
   frame.add(back);
   scene.add(frame);
 
@@ -279,6 +181,7 @@ export function createRackView(canvas, tooltip, handlers) {
       const mesh = new THREE.Mesh(itemGeo(hw.u_height), [sideMat, sideMat, sideMat, sideMat, front, sideMat]);
       mesh.position.set(0, centerY(item.u_start, hw.u_height), 0);
       mesh.userData.item = item;
+      mesh.castShadow = true; mesh.receiveShadow = true;
       itemsGroup.add(mesh);
       meshById.set(item.id, mesh);
       if (animate && !knownIds.has(item.id)) {

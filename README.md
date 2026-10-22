@@ -22,7 +22,7 @@ backend/            Flask API, SQLite, JWT
   data/             tunable game data: game_config.py, hardware.py, world_seed.py
 frontend/           vanilla HTML/JS/CSS (ES modules, no build step)
   js/               main, stage (renderer), globe, room, rack, panels, drawers, audio, ...
-  vendor/           Three.js r160 (MIT) and Natural Earth land data (public domain)
+  vendor/           Three.js r160 + RoomEnvironment (MIT) and Natural Earth land data (public domain)
 ```
 
 ## Setup

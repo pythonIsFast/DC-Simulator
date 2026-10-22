@@ -26,7 +26,7 @@ RACK_U = 42
 RACK_SHELL_CENTS = 600_00
 SELL_BACK_RATIO = 0.5                 # refund when removing hardware
 RACK_FEED_LIMIT_W = 12_000            # hard ceiling per rack, whatever the PDUs say
-MAX_PER_RACK = {"pdu": 2, "switch_tor": 2, "ups": 1}
+MAX_PER_RACK = {"pdu": 2, "switch_tor": 2, "ups": 1, "fan_panel": 2}
 EMPTY_U_HEAT_PENALTY = 0.004          # extra heat per empty U without blanking panel (if rack has servers)
 MAX_TEMPLATES = 20
 

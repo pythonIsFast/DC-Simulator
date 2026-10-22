@@ -1,6 +1,7 @@
 // Datacenter room view: instanced racks colored by heat/status, empty slots, heatmap floor.
 import * as THREE from "three";
-import { Orbit } from "./stage.js";
+import { Orbit, applyEnvironment } from "./stage.js";
+import { perforatedTexture } from "./faceplates.js";
 import { kw } from "./util.js";
 
 const COLS = 5;
@@ -35,13 +36,19 @@ export function createRoomView(canvas, tooltip, handlers) {
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
   const orbit = new Orbit(camera, canvas, { target: [0, 0.8, 0], dist: 9.5, minDist: 4, maxDist: 15, pitch: 0.75, yaw: 0.35, minPitch: 0.15, maxPitch: 1.35 });
 
-  scene.add(new THREE.AmbientLight(0x8899bb, 0.7));
-  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  applyEnvironment(scene);
+  scene.add(new THREE.AmbientLight(0x8899bb, 0.25));
+  const key = new THREE.DirectionalLight(0xfff4e6, 1.8);
   key.position.set(4, 9, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 25 });
+  key.shadow.bias = -0.0005;
   scene.add(key);
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.9 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.38, metalness: 0.3 }));
   floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
   scene.add(floor);
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x1b2433, roughness: 1 });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, 3.2), wallMat);
@@ -59,10 +66,15 @@ export function createRoomView(canvas, tooltip, handlers) {
   scene.add(heatmap);
 
   // Racks (instanced), status LEDs (instanced), empty slots (instanced)
-  const rackMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 2.0, 0.9), new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.4 }), MAX_SLOTS);
+  // Rack body: dark steel sides, perforated front door, no per-instance tint (heat is shown by a light strip).
+  const steel = new THREE.MeshStandardMaterial({ color: 0x1d232b, metalness: 0.85, roughness: 0.42 });
+  const door = new THREE.MeshStandardMaterial({ map: perforatedTexture(true, [2, 7]), metalness: 0.7, roughness: 0.5 });
+  const rackMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 2.0, 0.9), [steel, steel, steel, steel, door, steel], MAX_SLOTS);
+  rackMesh.castShadow = true; rackMesh.receiveShadow = true;
+  const heatMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, 1.8, 0.012), new THREE.MeshBasicMaterial(), MAX_SLOTS);
   const ledMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.46, 0.05, 0.02), new THREE.MeshBasicMaterial(), MAX_SLOTS);
   const slotMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.6, 0.9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.22, side: THREE.DoubleSide }), MAX_SLOTS);
-  for (const m of [rackMesh, ledMesh, slotMesh]) { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; scene.add(m); }
+  for (const m of [rackMesh, ledMesh, slotMesh, heatMesh]) { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; scene.add(m); }
   const cracGroup = new THREE.Group();
   scene.add(cracGroup);
 
@@ -80,7 +92,7 @@ export function createRoomView(canvas, tooltip, handlers) {
     const used = new Set(racks.map((r) => r.slot));
     emptySlots = [];
     for (let s = 0; s < (dc ? dc.max_racks : 0); s++) if (!used.has(s)) emptySlots.push(s);
-    rackMesh.count = ledMesh.count = racks.length;
+    rackMesh.count = ledMesh.count = heatMesh.count = racks.length;
     slotMesh.count = emptySlots.length;
     racks.forEach((r, i) => {
       const p = slotPos(r.slot);
@@ -92,7 +104,9 @@ export function createRoomView(canvas, tooltip, handlers) {
       if (r.items.length === 0) color = tmpC.copy(EMPTY);
       else if (!r.online) color = tmpC.copy(OFF);
       else color = heatColor(r.stats.heat_w / 9000, tmpC);
-      rackMesh.setColorAt(i, color);
+      tmpM.makeTranslation(p.x + 0.25, 1.0, p.z + 0.456);
+      heatMesh.setMatrixAt(i, tmpM);
+      heatMesh.setColorAt(i, color);
     });
     emptySlots.forEach((s, i) => {
       const p = slotPos(s);
@@ -100,11 +114,11 @@ export function createRoomView(canvas, tooltip, handlers) {
       slotMesh.setMatrixAt(i, tmpM);
       slotMesh.setColorAt(i, tmpC.set(0x2dd4bf));
     });
-    for (const m of [rackMesh, slotMesh]) {
-      m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    }
+    for (const m of [rackMesh, slotMesh]) m.instanceMatrix.needsUpdate = true;
+    if (slotMesh.instanceColor) slotMesh.instanceColor.needsUpdate = true;
     ledMesh.instanceMatrix.needsUpdate = true;
+    heatMesh.instanceMatrix.needsUpdate = true;
+    if (heatMesh.instanceColor) heatMesh.instanceColor.needsUpdate = true;
 
     // Cooling units along the back wall
     cracGroup.clear();

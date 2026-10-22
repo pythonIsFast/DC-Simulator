@@ -161,20 +161,25 @@ function roomPanel() {
 
 // ------------------------------------------------------------------ rack builder
 
-const GROUPS = [
-  ["Servers", ["server_cpu", "server_storage", "server_gpu"]], ["Network", ["switch_tor"]],
-  ["Power", ["pdu", "ups"]], ["Extras", ["patch_panel", "cable_mgmt", "blank"]],
+const TABS = [
+  ["Servers", [["Compute", ["server_cpu"]], ["Storage", ["server_storage"]], ["GPU / AI", ["server_gpu"]]]],
+  ["Network", [["Top-of-rack switches", ["switch_tor"]]]],
+  ["Power", [["PDUs", ["pdu"]], ["UPS (backup)", ["ups"]]]],
+  ["Extras", [["Cooling and cabling", ["fan_panel", "patch_panel", "cable_mgmt", "blank"]]]],
 ];
+let activeTab = "Servers";
 
 function shortSpec(hw) {
   const a = hw.attrs;
   const parts = [`${hw.u_height} U`];
   if (hw.power_w) parts.push(`${hw.power_w} W`);
   if (a.cpu) parts.push(`${a.cpu} CPU`);
-  if (a.storage_tb) parts.push(`${a.storage_tb} TB`);
+  if (a.storage_tb) parts.push(a.storage_tb >= 1000 ? `${a.storage_tb / 1000} PB` : `${a.storage_tb} TB`);
   if (a.gpu) parts.push(`${a.gpu} GPU`);
   if (hw.ports) parts.push(`${hw.ports} ports`);
-  if (a.max_w) parts.push(`${a.max_w / 1000} kW`);
+  if (a.max_w) parts.push(`${a.max_w / 1000} kW max`);
+  if (a.ups_w) parts.push(`${a.ups_w / 1000} kW backup`);
+  if (a.heat_reduction) parts.push(`-${Math.round(a.heat_reduction * 100)}% heat`);
   return parts.join(" · ");
 }
 
@@ -197,18 +202,25 @@ function hwCard(hw) {
   return el;
 }
 
+function buildPalette(tabsBox, listBox) {
+  tabsBox.replaceChildren(...TABS.map(([name]) => h("button", {
+    class: "small " + (name === activeTab ? "" : "secondary"),
+    onclick: () => { activeTab = name; sfx.click(); buildPalette(tabsBox, listBox); },
+  }, name)));
+  const groups = TABS.find(([name]) => name === activeTab)[1];
+  listBox.replaceChildren(...groups.flatMap(([title, cats]) => [
+    h("h3", {}, title),
+    ...store.hw.list.filter((x) => cats.includes(x.category)).map(hwCard),
+  ]));
+}
+
 function buildRackPanel(root, found) {
   const statsBox = h("div", {});
   const selBox = h("div", {});
   const detailsBox = h("div", {});
-  const palette = h("div", {});
-  for (const [title, cats] of GROUPS) {
-    // Rarely needed extras stay collapsed.
-    const target = title === "Extras" ? h("details", {}, h("summary", {}, title)) : palette;
-    if (title !== "Extras") palette.append(h("h3", {}, title));
-    store.hw.list.filter((x) => cats.includes(x.category)).forEach((hw) => target.append(hwCard(hw)));
-    if (title === "Extras") palette.append(target);
-  }
+  const tabsBox = h("div", { class: "row", style: "margin:.4rem 0" });
+  const listBox = h("div", {});
+  buildPalette(tabsBox, listBox);
   const dcId = found.dc.id;
   const actions = h("details", {}, h("summary", {}, "Rack actions"),
     h("div", { class: "row", style: "margin-top:.4rem" },
@@ -227,9 +239,9 @@ function buildRackPanel(root, found) {
   root.replaceChildren(
     h("div", { class: "row" }, h("h2", { style: "flex:1" }, found.rack.name), h("button", { class: "secondary small", onclick: () => nav({ mode: "room", dcId }) }, "Back")),
     statsBox, selBox,
-    h("details", { open: true }, h("summary", {}, "Add equipment"),
-      h("p", { class: "muted", style: "font-size:.8rem;margin:.3rem 0" }, "Drag into the rack, or click to mount."), palette),
-    detailsBox, actions,
+    h("h3", {}, "Add equipment"),
+    h("p", { class: "muted", style: "font-size:.82rem;margin:0" }, "Drag into the rack, or click to mount."),
+    tabsBox, listBox, detailsBox, actions,
   );
   rackBuilt = { rackId: found.rack.id, statsBox, selBox, detailsBox };
   updateSelection();
@@ -242,27 +254,29 @@ function updateRackStats(found) {
   const { rack, dc } = found;
   const st = rack.stats;
   const loadRatio = st.limit_w ? st.load_w / st.limit_w : 0;
-  const top = [];
-  if (!rack.online) {
-    top.push(h("div", { class: "item", style: "border-color:var(--bad)" },
-      h("div", { class: "title bad" }, "Offline: " + (rack.offline_text || "no power")),
-      rack.status !== "ok" ? h("button", { class: "small", style: "margin-top:.3rem", onclick: async () => {
-        if (await run("repair_rack", { rack_id: rack.id }, "build")) toast("Rack repaired", "good");
-      } }, rack.status === "tripped" ? "Reset breaker (free)" : `Repair now (${money(store.hw.rules.repair_cost_cents)})`) : null));
+  const empty = st.used_u === 0;
+  const [pill, kind] = rack.online ? (empty ? ["Empty", ""] : ["Online", "good"]) : [rack.offline_text || "Offline", "bad"];
+  const top = [
+    h("div", { class: "row", style: "margin-bottom:.5rem" }, h("span", { class: "pill " + kind }, pill),
+      st.redundant ? h("span", { class: "tag ok" }, "redundant") : null),
+    h("div", { class: "tiles" },
+      tile("Space", `${st.used_u}/${store.hw.rules.rack_u} U`, st.used_u / store.hw.rules.rack_u),
+      tile("Power", `${(st.load_w / 1000).toFixed(1)}/${(st.limit_w / 1000).toFixed(1)} kW`, loadRatio),
+      tile("Ports", `${st.ports_used}/${st.ports_total}`, st.ports_total ? st.ports_used / st.ports_total : 0)),
+  ];
+  if (!rack.online && rack.status !== "ok") {
+    top.push(h("button", { class: "small wide", style: "margin-top:.5rem", onclick: async () => {
+      if (await run("repair_rack", { rack_id: rack.id }, "build")) toast("Rack repaired", "good");
+    } }, rack.status === "tripped" ? "Reset breaker (free)" : `Repair now (${money(store.hw.rules.repair_cost_cents)})`));
   }
-  top.push(
+  top.push(h("div", { style: "margin-top:.6rem" },
     check(st.pdu_count > 0, st.pdu_count ? `Power: ${st.pdu_count} PDU` : "Power: add a PDU"),
     check(st.tor_count > 0, st.tor_count ? `Network: ${st.tor_count} ToR switch` : "Network: add a ToR switch"),
-    check(st.server_count > 0 && st.connected_ids.length === st.server_count, `Servers connected: ${st.connected_ids.length}/${st.server_count}`),
-    h("div", { style: "margin-top:.5rem" }, stat("Power", `${kw(st.load_w)} / ${kw(st.limit_w)}`, st.overload ? "bad" : ""),
-      bar(loadRatio, st.overload ? "badbar" : loadRatio > 0.85 ? "warnbar" : "")),
-  );
+    check(st.server_count > 0 && st.connected_ids.length === st.server_count, `Servers connected: ${st.connected_ids.length}/${st.server_count}`)));
   rackBuilt.statsBox.replaceChildren(...top);
 
-  const det = h("details", {}, h("summary", {}, "Rack details"),
-    stat("Space", `${st.used_u} / ${store.hw.rules.rack_u} U`),
-    stat("Heat", kw(st.heat_w)),
-    stat("Switch ports", `${st.ports_used} / ${st.ports_total}`),
+  const det = h("details", {}, h("summary", {}, `Rack details${st.warnings.length ? ` (${st.warnings.length} notes)` : ""}`),
+    stat("Heat output", kw(st.heat_w)),
     h("div", { style: "margin:.3rem 0" }, chip("Power N+1", st.power_redundant), chip("2x ToR", st.net_redundant), chip("UPS", st.has_ups)),
     stat("Sellable CPU", num(st.cpu)), stat("Sellable storage", num(st.storage_tb) + " TB"), stat("Sellable GPU", num(st.gpu)));
   if (st.warnings.length) det.append(h("ul", { class: "warnings" }, st.warnings.map((w) => h("li", { class: /Overload|No PDU|No ToR/.test(w) ? "bad" : "" }, w))));
@@ -277,7 +291,7 @@ function updateSelection() {
   if (!selectedItem) { box.replaceChildren(); return; }
   const hw = store.hw.byCode[selectedItem.code];
   const id = selectedItem.id;
-  box.replaceChildren(h("div", { class: "item", style: "border-color:var(--accent)" },
+  box.replaceChildren(h("div", { class: "item", style: "border-color:var(--accent);margin-top:.6rem" },
     h("div", { class: "title" }, h("span", {}, hw.name), h("span", { class: "muted" }, `U${selectedItem.u_start}`)),
     h("div", { class: "row" }, h("span", { class: "sub", style: "flex:1" }, `Sell for ${money(hw.price_cents * store.hw.rules.sell_back_ratio)}`),
       h("button", { class: "danger small", onclick: () => bus.emit("remove", id) }, "Remove"))));

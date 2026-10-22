@@ -1,5 +1,6 @@
 // One shared WebGL renderer; views (globe, room, rack) take turns rendering into it.
 import * as THREE from "three";
+import { RoomEnvironment } from "../vendor/RoomEnvironment.js";
 
 export const stage = {
   renderer: null,
@@ -12,6 +13,10 @@ export function initStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   stage.renderer = renderer;
   const resize = () => {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -99,4 +104,15 @@ export class Orbit {
     );
     this.camera.lookAt(this.target);
   }
+}
+
+// Image-based lighting from a procedural studio room: gives metal parts believable reflections.
+let envTexture = null;
+export function applyEnvironment(scene) {
+  if (!envTexture) {
+    const pmrem = new THREE.PMREMGenerator(stage.renderer);
+    envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+  }
+  scene.environment = envTexture;
 }

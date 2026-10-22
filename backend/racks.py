@@ -60,7 +60,8 @@ def rack_stats(items):
 
     load_w = sum(i["power_w"] for i in items)
     heat_mult = 1.0 + (cfg.EMPTY_U_HEAT_PENALTY * empty_u if servers else 0.0)
-    heat_w = sum(i["heat_w"] for i in items) * heat_mult
+    fan_cut = min(0.15, sum(i["attrs"].get("heat_reduction", 0) for i in items))
+    heat_w = sum(i["heat_w"] for i in items) * heat_mult * (1.0 - fan_cut)
 
     pdu_caps = [p["attrs"].get("max_w", 0) for p in pdus]
     pdu_cap_w = sum(pdu_caps)
