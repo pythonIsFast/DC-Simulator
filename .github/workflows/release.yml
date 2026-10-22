@@ -1,0 +1,65 @@
+name: Release (Windows portable)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt pyinstaller
+
+      - name: Build portable exe
+        shell: bash
+        run: |
+          pyinstaller --onefile --name DatacenterTycoon \
+            --paths backend \
+            --add-data "backend/schema.sql;." \
+            --add-data "frontend;frontend" \
+            --hidden-import routes.auth_routes \
+            --hidden-import routes.world_routes \
+            --hidden-import data.game_config \
+            --hidden-import data.hardware \
+            --hidden-import data.research \
+            --hidden-import data.world_seed \
+            backend/app.py
+
+      - name: Smoke test (server starts)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\DatacenterTycoon.exe -PassThru
+          Start-Sleep -Seconds 15
+          $r = Invoke-RestMethod http://127.0.0.1:5000/api/health
+          Stop-Process -Id $p.Id -Force
+          if ($r.status -ne "ok") { throw "health check failed" }
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\DatacenterTycoon.exe -DestinationPath DatacenterTycoon-windows-portable.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DatacenterTycoon-windows-portable
+          path: DatacenterTycoon-windows-portable.zip
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            DatacenterTycoon-windows-portable.zip
+            dist/DatacenterTycoon.exe
+          generate_release_notes: true

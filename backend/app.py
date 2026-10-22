@@ -4,6 +4,8 @@ Run (from the backend directory):  python app.py
 Initialize the database only:       python app.py --init-db
 """
 import sys
+import threading
+import webbrowser
 
 from flask import Flask, jsonify, send_from_directory
 
@@ -52,4 +54,7 @@ if __name__ == "__main__":
     if "--init-db" in sys.argv:
         print("Database ready at", application.config["DATABASE"])
     else:
+        if getattr(sys, "frozen", False):
+            # Portable build: open the game in the default browser.
+            threading.Timer(1.5, webbrowser.open, ["http://127.0.0.1:5000"]).start()
         application.run(host="127.0.0.1", port=5000, debug=False)
