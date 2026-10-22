@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { Orbit, applyEnvironment } from "./stage.js";
 import { perforatedTexture } from "./faceplates.js";
+import { createPeople } from "./people.js";
 import { kw } from "./util.js";
 
 const COLS = 5;
@@ -77,6 +78,7 @@ export function createRoomView(canvas, tooltip, handlers) {
   for (const m of [rackMesh, ledMesh, slotMesh, heatMesh]) { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; scene.add(m); }
   const cracGroup = new THREE.Group();
   scene.add(cracGroup);
+  const people = createPeople(scene, slotPos);
 
   let dc = null;
   let racks = [];          // rack json per rack instance
@@ -205,8 +207,10 @@ export function createRoomView(canvas, tooltip, handlers) {
     setDatacenter(next) { dc = next; util = next ? next.util : 0; rebuild(); },
     setHeatmap(on) { heatmap.visible = on; },
     setUtil(u) { util = u; },
+    setPeople(data) { people.setData(data); },
     update(dt, t) {
       orbit.update(dt);
+      people.update(dt, t);
       // Status LEDs: green blink speed follows utilization, red = offline, amber = overload
       for (let i = 0; i < racks.length; i++) {
         const r = racks[i];

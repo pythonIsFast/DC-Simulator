@@ -126,6 +126,7 @@ bus.on("nav", (p) => {
     setView({ mode: "room", regionId: dc.region_id, dcId: dc.id, rackId: null });
     views.room.setDatacenter(dc);
     roomSig = JSON.stringify([dc.racks, dc.cooling_kw]);
+    views.room.setPeople({ employees: s.team.employees, orders: s.team.orders, racks: dc.racks, dcId: dc.id });
     setStageView(views.room);
   } else if (p.mode === "rack") {
     const found = rackById(p.rackId);
@@ -175,6 +176,7 @@ bus.on("state", (state) => {
     const sig = JSON.stringify([dc.racks, dc.cooling_kw]);
     if (sig !== roomSig) { roomSig = sig; views.room.setDatacenter(dc); }
     views.room.setUtil(dc.util);
+    views.room.setPeople({ employees: state.team.employees, orders: state.team.orders, racks: dc.racks, dcId: dc.id });
   } else if (v.mode === "rack") {
     const found = rackById(v.rackId);
     if (!found) { nav({ mode: "room", dcId: v.dcId }); return; }

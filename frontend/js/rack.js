@@ -39,7 +39,7 @@ export function createRackView(canvas, tooltip, handlers) {
   key.shadow.camera.near = 0.5; key.shadow.camera.far = 9;
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.01;
   scene.add(key);
-  const fill = new THREE.PointLight(0x5aa9ff, 0.8, 6);
+  const fill = new THREE.PointLight(0x5aa9ff, 8, 6);
   fill.position.set(-1.6, 1.2, 1.8);
   scene.add(fill);
 

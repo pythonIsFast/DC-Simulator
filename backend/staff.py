@@ -545,7 +545,7 @@ def daily(db, world, company, tick, rng):
 # ---------------------------------------------------------------- client state
 
 def team_state(db, company, tick):
-    emps = db.execute("SELECT e.*, o.title AS order_title FROM employees e LEFT JOIN work_orders o ON o.id = e.order_id"
+    emps = db.execute("SELECT e.*, o.title AS order_title, o.plan_json AS order_plan, o.kind AS order_kind FROM employees e LEFT JOIN work_orders o ON o.id = e.order_id"
                       " WHERE e.company_id = ? ORDER BY e.role, e.skill DESC, e.id", (company["id"],)).fetchall()
     cands = db.execute("SELECT * FROM candidates WHERE company_id = ? AND expires_tick >= ? ORDER BY role, skill DESC", (company["id"], tick)).fetchall()
     props = db.execute("SELECT p.*, e.name AS admin_name FROM proposals p LEFT JOIN employees e ON e.id = p.admin_id"
@@ -558,14 +558,15 @@ def team_state(db, company, tick):
         "effects": eff,
         "employees": [{"id": e["id"], "name": e["name"], "role": e["role"], "skill": e["skill"], "xp": e["xp"],
                        "xp_needed": cfg.XP_PER_LEVEL * e["skill"], "salary_cents_per_tick": e["salary_cents_per_tick"],
-                       "status": e["status"], "task": e["order_title"]} for e in emps],
+                       "status": e["status"], "task": e["order_title"], "order_kind": e["order_kind"],
+                       "dc_id": json.loads(e["order_plan"]).get("dc_id") if e["order_plan"] else None} for e in emps],
         "candidates": [{"id": c["id"], "name": c["name"], "role": c["role"], "skill": c["skill"],
                         "salary_cents_per_tick": c["salary_cents_per_tick"], "hire_cost_cents": c["hire_cost_cents"],
                         "expires_tick": c["expires_tick"]} for c in cands],
         "proposals": [{"id": p["id"], "kind": p["kind"], "title": p["title"], "admin": p["admin_name"], "cost_cents": p["cost_cents"],
                        "est_ticks": p["est_ticks"], "expires_tick": p["expires_tick"], **json.loads(p["summary_json"])} for p in props],
-        "orders": [{"id": o["id"], "title": o["title"], "status": o["status"], "progress": o["progress"],
-                    "total_ticks": o["total_ticks"], "employee": o["e_name"]} for o in orders],
+        "orders": [{"id": o["id"], "title": o["title"], "status": o["status"], "progress": o["progress"], "kind": o["kind"],
+                    "dc_id": json.loads(o["plan_json"]).get("dc_id"), "total_ticks": o["total_ticks"], "employee": o["e_name"]} for o in orders],
         "max_employees": cfg.MAX_EMPLOYEES,
         "auto_accept": auto_accept_enabled(db, company["id"]),
         "sales_per_day": sum(e["skill"] for e in emps if e["role"] == "sales"),
