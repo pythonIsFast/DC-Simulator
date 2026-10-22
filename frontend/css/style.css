@@ -1,0 +1,13 @@
+body { font-family: system-ui, sans-serif; background: #10151c; color: #e6edf3; margin: 0; }
+#app { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+h1 { font-size: 1.6rem; }
+input, button { font: inherit; padding: .5rem .7rem; margin: .2rem 0; border-radius: 6px; border: 1px solid #30363d; }
+input { background: #0d1117; color: inherit; width: 100%; box-sizing: border-box; }
+label input { width: 5rem; }
+button { background: #238636; color: #fff; cursor: pointer; }
+button.secondary { background: #30363d; }
+.row { display: flex; gap: .5rem; }
+ul { padding-left: 1.2rem; }
+li button { margin-left: .5rem; }
+#msg { color: #ff7b72; min-height: 1.4rem; }
+[hidden] { display: none !important; }

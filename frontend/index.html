@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datacenter Tycoon</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main id="app">
+    <h1>Datacenter Tycoon</h1>
+
+    <section id="view-auth" hidden>
+      <form id="auth-form">
+        <input id="auth-user" placeholder="Username" autocomplete="username" required>
+        <input id="auth-pass" type="password" placeholder="Password (min. 8 characters)" autocomplete="current-password" required>
+        <div class="row">
+          <button type="submit" data-mode="login">Log in</button>
+          <button type="submit" data-mode="register" class="secondary">Register</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="view-worlds" hidden>
+      <p>Logged in as <strong id="who"></strong> <button id="logout" class="secondary">Log out</button></p>
+      <h2>Your worlds</h2>
+      <ul id="world-list"></ul>
+      <form id="world-form">
+        <input id="world-name" placeholder="World name" maxlength="40">
+        <input id="company-name" placeholder="Company name" maxlength="40">
+        <label>AI rivals <input id="ai-count" type="number" min="0" max="5" value="3"></label>
+        <button type="submit">Create world</button>
+      </form>
+    </section>
+
+    <section id="view-world" hidden>
+      <p><button id="back" class="secondary">Back</button></p>
+      <h2 id="world-title"></h2>
+      <p>Tick: <strong id="tick"></strong> | Cash: <strong id="cash"></strong></p>
+      <div class="row" id="speed-buttons">
+        <button data-speed="0">Pause</button>
+        <button data-speed="1">1x</button>
+        <button data-speed="2">2x</button>
+        <button data-speed="5">5x</button>
+      </div>
+      <h3>Rivals</h3>
+      <ul id="rivals"></ul>
+      <h3>Regions</h3>
+      <ul id="regions"></ul>
+    </section>
+
+    <p id="msg" role="status"></p>
+  </main>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
