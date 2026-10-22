@@ -91,7 +91,7 @@ export function createRoomView(canvas, tooltip, handlers) {
       let color;
       if (r.items.length === 0) color = tmpC.copy(EMPTY);
       else if (!r.online) color = tmpC.copy(OFF);
-      else heatColor(r.stats.heat_w / 9000, tmpC);
+      else color = heatColor(r.stats.heat_w / 9000, tmpC);
       rackMesh.setColorAt(i, color);
     });
     emptySlots.forEach((s, i) => {

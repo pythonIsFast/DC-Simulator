@@ -7,6 +7,7 @@ import { createRoomView } from "./room.js";
 import { createRackView } from "./rack.js";
 import { $, h, money } from "./util.js";
 import { toast, banner, run, moneyPopup, animateMoney, renderHud, resetMoney, bumpCash } from "./ui.js";
+import { renderGuide } from "./guide.js";
 import { renderContext, currentTemplate } from "./panels.js";
 import { toggleDrawer, addLog, resetDrawers } from "./drawers.js";
 import { sfx, setFanLevel, toggleMute, isMuted } from "./audio.js";
@@ -162,6 +163,7 @@ function updateFan() {
 bus.on("state", (state) => {
   if (!views) return;
   renderHud();
+  renderGuide();
   views.globe.setData(state);
   const v = store.view;
   if (v.mode === "room") {

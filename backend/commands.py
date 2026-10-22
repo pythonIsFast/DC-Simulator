@@ -164,6 +164,8 @@ def build_datacenter(db, world, company, payload):
         hw = db.execute("SELECT id FROM hardware_types WHERE code = ?", (category,)).fetchone()
         db.execute("INSERT INTO dc_equipment (datacenter_id, hardware_type_id, qty) VALUES (?, ?, ?)",
                    (dc_id, hw["id"], qty))
+    if count == 0:
+        market.seed_offers(db, world, world["tick"], region["id"])  # customers show up immediately
     return {"datacenter_id": dc_id, "cost_cents": cost}
 
 

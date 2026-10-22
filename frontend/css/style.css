@@ -108,3 +108,10 @@ canvas.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
 @media (max-width: 900px) {
   #context { width: 280px; } #toasts { right: 300px; } .brand { display: none; }
 }
+
+/* "What now?" card */
+#guide { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 9; width: min(560px, calc(100vw - 800px)); min-width: 320px;
+  background: linear-gradient(135deg, rgba(31,111,235,.92), rgba(88,60,200,.92)); border-radius: 10px; padding: .6rem .9rem; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+#guide b { display: block; font-size: 1rem; margin-bottom: .15rem; }
+#guide .muted { color: rgba(255,255,255,.75); }
+.check { display: flex; gap: .4rem; padding: .1rem 0; } .check.ok { color: var(--good); } .check.no { color: var(--bad); }

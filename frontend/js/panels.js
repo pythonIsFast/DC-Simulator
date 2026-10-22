@@ -245,8 +245,15 @@ function updateRackStats(found) {
         if (await run("repair_rack", { rack_id: rack.id }, "build")) toast("Rack repaired", "good");
       } }, rack.status === "tripped" ? "Reset breaker (free)" : `Repair now (${money(store.hw.rules.repair_cost_cents)})`) : null));
   }
+  const item = (ok, text) => h("div", { class: "check " + (ok ? "ok" : "no") }, (ok ? "✓" : "✗") + " " + text);
   kids.push(
-    stat("Rack space", `${st.used_u} / ${store.hw.rules.rack_u} U`), bar(st.used_u / store.hw.rules.rack_u),
+    h("h3", {}, "Checklist"),
+    item(st.pdu_count > 0, st.pdu_count ? `Power: ${st.pdu_count} PDU` : "Power: add a PDU"),
+    item(st.tor_count > 0, st.tor_count ? `Network: ${st.tor_count} ToR switch` : "Network: add a ToR switch"),
+    item(st.server_count > 0 && st.connected_ids.length === st.server_count, `Servers connected: ${st.connected_ids.length}/${st.server_count}`),
+    item(rack.online, rack.online ? "Rack is online and sellable" : "Rack is offline"),
+    h("h3", {}, "Details"),
+    stat("Rack space",`${st.used_u} / ${store.hw.rules.rack_u} U`), bar(st.used_u / store.hw.rules.rack_u),
     stat("Power draw / limit", `${kw(st.load_w)} / ${kw(st.limit_w)}`, st.overload ? "bad" : ""),
     bar(loadRatio, st.overload ? "badbar" : loadRatio > 0.85 ? "warnbar" : ""),
     stat("Heat output", kw(st.heat_w)),

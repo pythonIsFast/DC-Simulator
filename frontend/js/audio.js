@@ -2,9 +2,11 @@
 let ctx = null;
 let master = null;
 let muted = false;
+let unlocked = false;   // browsers block audio until the first user gesture
 try { muted = localStorage.getItem("dc_muted") === "1"; } catch { /* storage unavailable */ }
 
 function ensure() {
+  if (!unlocked) return false;
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
@@ -18,7 +20,7 @@ function ensure() {
 }
 
 // Browsers only allow audio after a user gesture.
-export function unlockAudio() { ensure(); }
+export function unlockAudio() { unlocked = true; ensure(); }
 window.addEventListener("pointerdown", unlockAudio, { once: true });
 window.addEventListener("keydown", unlockAudio, { once: true });
 

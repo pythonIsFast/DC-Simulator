@@ -25,7 +25,7 @@ def create_world(db, user_id, world_name, company_name, ai_count):
     db.execute("BEGIN IMMEDIATE")
     try:
         cur = db.execute(
-            "INSERT INTO worlds (name, owner_user_id, mode, seed, last_update_ts) VALUES (?, ?, 'singleplayer', ?, ?)",
+            "INSERT INTO worlds (name, owner_user_id, mode, seed, speed, last_update_ts) VALUES (?, ?, 'singleplayer', ?, 0, ?)",
             (world_name, user_id, seed, now),
         )
         world_id = cur.lastrowid
@@ -187,6 +187,10 @@ def world_state(db, world, company, since_event=None):
             "id": company["id"], "name": company["name"], "color": company["color"],
             "cash_cents": company["cash_cents"], "revenue_cents_per_tick": company["last_revenue_cents"],
             "expense_cents_per_tick": company["last_expense_cents"], "net_worth_cents": _net_worth(db, company),
+            # Last settled tick split by category (negative = cost), shown in the HUD.
+            "breakdown": {r["category"]: r["s"] for r in db.execute(
+                "SELECT category, SUM(amount_cents) AS s FROM ledger WHERE company_id = ? AND tick = ?"
+                " AND category IN ('revenue', 'power', 'rent', 'staff') GROUP BY category", (company["id"], tick))},
         },
         "rivals": rivals,
         "regions": [

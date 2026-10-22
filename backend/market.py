@@ -85,7 +85,7 @@ def _make_offer(rng, region, tick, free_units):
     }
 
 
-def generate_offers(db, world, tick, rng, human_regions, info):
+def generate_offers(db, world, tick, rng, human_regions, info, minimum=0):
     """Daily: create new open offers where the market still has free demand."""
     world_id = world["id"]
     db.execute(
@@ -102,7 +102,7 @@ def generate_offers(db, world, tick, rng, human_regions, info):
         ).fetchone()[0]
         expected = cfg.OFFERS_PER_DAY_MAX * d["free"] / d["demand"]
         n = int(expected) + (1 if rng.random() < expected - int(expected) else 0)
-        n = min(n, cfg.MAX_OPEN_OFFERS_PER_REGION - open_n)
+        n = min(max(n, minimum), cfg.MAX_OPEN_OFFERS_PER_REGION - open_n)
         region = db.execute("SELECT * FROM regions WHERE id = ?", (rid,)).fetchone()
         for _ in range(n):
             offer = _make_offer(rng, region, tick, d["free"])
@@ -116,3 +116,10 @@ def generate_offers(db, world, tick, rng, human_regions, info):
                  offer["units_eq"], offer["premium"], offer["rate"], offer["penalty"], offer["duration"],
                  tick, tick + cfg.OFFER_LIFETIME_TICKS),
             )
+
+
+def seed_offers(db, world, tick, region_id, count=3):
+    """Create a few offers right away (e.g. after the first datacenter in a region is built)."""
+    rng = random.Random(world["seed"] * 7919 + tick * 31 + region_id)
+    info = compute_market(db, world["id"], tick, persist=False)
+    generate_offers(db, world, tick, rng, {region_id}, info, minimum=count)
