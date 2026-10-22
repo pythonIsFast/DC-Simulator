@@ -1,11 +1,11 @@
 /* One accent color (teal) on a neutral dark base. Green/amber/red are only used for status. */
 :root {
-  --bg: #0b0f14; --panel: #131a23; --panel2: #1a2230; --line: #243040; --text: #e8edf3; --muted: #8794a6;
-  --accent: #2dd4bf; --accent-text: #04201c; --good: #4ade80; --warn: #fbbf24; --bad: #f87171;
+  --bg: #080e20; --panel: rgba(14,24,52,.94); --panel2: #182650; --line: #2b3d72; --text: #f4f7ff; --muted: #b3c0de;
+  --accent: #2dd4bf; --accent-text: #03231f; --good: #4ade80; --warn: #fbbf24; --bad: #fb7185;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 [hidden] { display: none !important; }
@@ -61,8 +61,8 @@ ul.plain li { padding: .4rem 0; border-bottom: 1px solid var(--line); display: f
 #crumbs .sep { color: var(--muted); }
 
 /* Panels */
-#context, #drawer { position: fixed; top: 64px; bottom: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; overflow: auto; z-index: 8; }
-#context { right: 12px; width: 330px; }
+#context, #drawer { backdrop-filter: blur(8px); position: fixed; top: 64px; bottom: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; overflow: auto; z-index: 8; }
+#context { right: 12px; width: 340px; }
 #drawer { left: 12px; top: 100px; width: 400px; max-width: calc(100vw - 380px); z-index: 11; }
 #context:empty { display: none; }
 .stat { display: flex; justify-content: space-between; gap: .5rem; padding: .15rem 0; font-variant-numeric: tabular-nums; }
@@ -74,7 +74,7 @@ ul.plain li { padding: .4rem 0; border-bottom: 1px solid var(--line); display: f
 .item.clickable:hover, .item.draggable:hover { border-color: var(--accent); }
 .item.draggable { cursor: grab; }
 .item .title { font-weight: 600; display: flex; justify-content: space-between; gap: .5rem; }
-.item .sub { color: var(--muted); font-size: .8rem; }
+.item .sub { color: var(--muted); font-size: .88rem; }
 .tag { display: inline-block; padding: 0 .45rem; border-radius: 4px; font-size: .7rem; background: var(--line); color: var(--muted); margin-left: .35rem; font-weight: 500; }
 .tag.premium { background: var(--accent); color: var(--accent-text); } .tag.bad { background: var(--bad); color: #2a0a0a; } .tag.ok { background: var(--good); color: #062a14; }
 .warnings { margin: .3rem 0; padding-left: 1.1rem; color: var(--warn); font-size: .82rem; }
@@ -86,7 +86,7 @@ details[open] > summary { color: var(--text); }
 
 /* Globe labels */
 .region-label { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer; white-space: nowrap;
-  font-size: 12px; padding: 2px 8px 2px 6px; border-radius: 10px; background: rgba(11,15,20,.8); border: 1px solid var(--line); }
+  font-size: 13px; font-weight: 600; padding: 3px 9px 3px 7px; border-radius: 10px; background: rgba(11,15,20,.8); border: 1px solid var(--line); }
 .region-label::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #9fb3c8; margin-right: 5px; }
 .region-label.mine::before { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 .region-label.event::before { background: var(--warn); animation: pulse 1s infinite; }
@@ -106,9 +106,9 @@ details[open] > summary { color: var(--text); }
 @keyframes banner { 0% { opacity: 0; transform: translateX(-50%) scale(.6); } 12% { opacity: 1; transform: translateX(-50%) scale(1.08); }
   20% { transform: translateX(-50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-20px); } }
 canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
-#guide { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 9; width: min(520px, calc(100vw - 800px)); min-width: 300px;
+#guide { font-size: 1.05rem; position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 9; width: min(520px, calc(100vw - 800px)); min-width: 300px;
   background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: .6rem .9rem; }
 #guide b { display: block; color: var(--accent); margin-bottom: .1rem; }
-#guide .muted { margin-top: .3rem; font-size: .78rem; }
+#guide .muted { display: none; }
 
 @media (max-width: 900px) { #context { width: 280px; } #toasts { right: 300px; } .brand { display: none; } }

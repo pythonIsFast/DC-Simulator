@@ -71,18 +71,20 @@ function contractsView(s) {
   if (tab === "offers") {
     const hasDc = new Set(s.datacenters.map((d) => d.region_id));
     const offers = [...s.offers].sort((a, b) => (hasDc.has(b.region_id) - hasDc.has(a.region_id)) || b.revenue_cents_per_tick - a.revenue_cents_per_tick);
-    if (!offers.length) list.append(h("p", { class: "muted" }, "No offers right now. Customers appear in regions where you own a datacenter and demand is not already served."));
+    if (!offers.length) list.append(h("p", { class: "muted" }, "No offers right now. New customers arrive every day."));
     for (const o of offers) {
       const region = regionById(o.region_id);
       const mine = hasDc.has(o.region_id);
       const free = cap[o.region_id] ? (o.premium ? cap[o.region_id].red : cap[o.region_id].all)[o.resource] : 0;
       const enough = free >= o.units;
-      list.append(h("div", { class: "item", style: mine ? "" : "opacity:.55" },
-        h("div", { class: "title" }, h("span", {}, o.name, h("span", { class: "tag" }, o.kind), o.premium ? h("span", { class: "tag premium", title: "Needs racks with 2 PDUs (N+1) and 2 ToR switches" }, "premium") : null),
+      const status = !mine ? h("span", { class: "muted" }, `Needs a datacenter in ${region.name}`)
+        : enough ? h("span", { class: "good" }, "✓ You have the capacity")
+          : h("span", { class: "warn" }, o.premium ? "Needs redundant racks (2 PDU + 2 ToR)" : "Not enough capacity yet");
+      list.append(h("div", { class: "item", style: mine ? "" : "opacity:.6" },
+        h("div", { class: "title" }, h("span", {}, o.name, o.premium ? h("span", { class: "tag premium" }, "premium") : null),
           h("span", { class: "good" }, money2(o.revenue_cents_per_tick) + "/h")),
-        h("div", { class: "sub" }, `${region.name} | needs ${num(o.units)} ${RES_LABEL[o.resource]} | ${Math.round(o.duration_ticks / 24)} days | SLA penalty ${money(o.penalty_cents)}`),
-        mine ? h("div", { class: "sub " + (enough ? "good" : "warn") }, `Your free capacity: ${num(free)} ${RES_LABEL[o.resource]}${o.premium ? " (redundant racks)" : ""}`) : h("div", { class: "sub" }, "No datacenter in this region"),
-        h("div", { class: "row", style: "margin-top:.3rem" }, h("span", { class: "sub", style: "flex:1" }, `Expires ${dateText(o.offer_expires_tick)}`),
+        h("div", { class: "sub" }, `${num(o.units)} ${RES_LABEL[o.resource]} · ${Math.round(o.duration_ticks / 24)} days`),
+        h("div", { class: "row", style: "margin-top:.3rem" }, h("span", { style: "flex:1;font-size:.88rem" }, status),
           h("button", { class: "small", disabled: !mine, onclick: async () => { if (await run("accept_contract", { contract_id: o.id }, "cash")) toast(`Contract '${o.name}' signed`, "good"); } }, "Accept"))));
     }
   } else {
@@ -92,11 +94,11 @@ function contractsView(s) {
       const left = Math.max(0, c.end_tick - s.world.tick);
       const failing = c.sla_fail_streak > 0;
       list.append(h("div", { class: "item", style: failing ? "border-color:var(--bad)" : "" },
-        h("div", { class: "title" }, h("span", {}, c.name, h("span", { class: "tag" }, c.kind), c.premium ? h("span", { class: "tag premium" }, "premium") : null),
+        h("div", { class: "title" }, h("span", {}, c.name, c.premium ? h("span", { class: "tag premium" }, "premium") : null),
           h("span", { class: failing ? "bad" : "good" }, failing ? "NOT SERVED" : money2(c.revenue_cents_per_tick) + "/h")),
-        h("div", { class: "sub" }, `${region.name} | ${num(c.units)} ${RES_LABEL[c.resource]} | ${Math.ceil(left / 24)} days left`),
-        failing ? h("div", { class: "sub bad" }, `Unserved for ${c.sla_fail_streak} h (breach at 48 h). Add capacity or repair racks!`) : null,
-        h("div", { class: "row", style: "margin-top:.3rem" }, h("span", { class: "sub", style: "flex:1" }, `Penalty if cancelled: ${money(c.penalty_cents / 2)}`),
+        h("div", { class: "sub" }, `${region.name} · ${num(c.units)} ${RES_LABEL[c.resource]} · ${Math.ceil(left / 24)} days left`),
+        failing ? h("div", { class: "bad", style: "font-size:.88rem" }, `Unserved for ${c.sla_fail_streak} h. Breach at 48 h: add servers or repair racks!`) : null,
+        h("div", { class: "row", style: "margin-top:.3rem;justify-content:flex-end" },
           h("button", { class: "danger small", onclick: async () => { if (confirm(`Cancel '${c.name}'? Penalty: ${money(c.penalty_cents / 2)}`)) await run("cancel_contract", { contract_id: c.id }, "unmount"); } }, "Cancel"))));
     }
   }

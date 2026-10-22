@@ -53,9 +53,8 @@ function globePanel() {
   const region = store.view.regionId ? regionById(store.view.regionId) : null;
   const box = h("div", {});
   if (!region) {
-    box.append(h("h2", {}, "World map"), h("p", { class: "muted" }, "Click a region to see it. Drag to rotate, scroll to zoom."));
+    box.append(h("h2", {}, s.datacenters.length ? "Your datacenters" : "Click a region"));
     if (s.datacenters.length) {
-      box.append(h("h3", {}, "Your datacenters"));
       s.datacenters.forEach((dc) => box.append(dcCard(dc)));
     }
     return box;

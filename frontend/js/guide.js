@@ -9,29 +9,29 @@ function nextStep(s) {
   const notServed = s.contracts.find((c) => c.sla_fail_streak > 0);
 
   if (!s.datacenters.length) {
-    return ["1/6 Build a datacenter", "Click a region on the globe (e.g. Frankfurt) and press \"Build datacenter\" in the right panel."];
+    return ["1. Build a datacenter", "Click a region on the globe, then \"Build datacenter\"."];
   }
   if (!racks.length) {
-    return ["2/6 Install a rack", "Click your datacenter in the right panel. In the room, click an empty blue square to install a rack."];
+    return ["2. Install a rack", "Open your datacenter, then click an empty square."];
   }
   if (!any((r) => r.stats.pdu_count > 0)) {
-    return ["3/6 Add power", "Click the rack to open it. Drag a PDU (Power) from the list on the right into the rack. Two PDUs = redundancy."];
+    return ["3. Add power", "Open the rack and drag a PDU into it."];
   }
   if (!any((r) => r.stats.tor_count > 0)) {
-    return ["3/6 Add a network switch", "Drag a ToR Switch (Network) into the rack. Servers have no network without it."];
+    return ["3. Add a switch", "Drag a ToR Switch into the rack."];
   }
   if (!any((r) => r.stats.server_count > 0)) {
-    return ["3/6 Add servers", "Drag servers into the rack, e.g. several \"Compute 1U\". Each server needs a free switch port."];
+    return ["3. Add servers", "Drag a few Compute servers into the rack."];
   }
   if (!any((r) => r.online)) {
     const r = racks[0];
     return ["The rack is offline", `Reason: ${r.offline_text || "unknown"}. Fix it in the rack panel (red box).`];
   }
   if (!s.contracts.length) {
-    return ["4/6 Win customers", "Open \"Contracts\" at the top and accept an offer you have capacity for. Without customers you only pay costs."];
+    return ["4. Win a customer", "Open Contracts and accept an offer."];
   }
   if (s.world.speed === 0) {
-    return ["5/6 Start the clock", "Time is paused. Press 1x, 2x or 5x (or Space). Money only flows while time runs."];
+    return ["5. Start the clock", "Press 1x, 2x or 5x. Money only flows while time runs."];
   }
   if (notServed) {
     return ["A contract is not served!", `"${notServed.name}" needs more capacity. Add servers (or fix offline racks). After 48 h it is breached.`];
@@ -39,7 +39,7 @@ function nextStep(s) {
   if (net < 0) {
     return ["You are losing money", "Costs are higher than revenue. Accept more contracts and mount more servers to sell."];
   }
-  return ["6/6 Expand", "Add servers, accept more contracts, watch heat and power in the datacenter panel, then open new regions. Rivals grow every day."];
+  return ["Keep growing", "Add servers, take more contracts, open new regions."];
 }
 
 export function renderGuide() {

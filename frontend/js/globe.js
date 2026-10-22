@@ -37,7 +37,7 @@ function drawEarthTexture(polys) {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d");
   const sea = ctx.createLinearGradient(0, 0, 0, H);
-  sea.addColorStop(0, "#0c1f33"); sea.addColorStop(0.5, "#0f2c47"); sea.addColorStop(1, "#0c1f33");
+  sea.addColorStop(0, "#0d3b73"); sea.addColorStop(0.5, "#1257a0"); sea.addColorStop(1, "#0d3b73");
   ctx.fillStyle = sea;
   ctx.fillRect(0, 0, W, H);
 
@@ -63,12 +63,12 @@ function drawEarthTexture(polys) {
   };
   path();
   const land = ctx.createLinearGradient(0, 0, 0, H);
-  land.addColorStop(0, "#dfe7ee"); land.addColorStop(0.15, "#3d5a4c"); land.addColorStop(0.5, "#46664f");
-  land.addColorStop(0.85, "#3d5a4c"); land.addColorStop(1, "#eef3f7");
+  land.addColorStop(0, "#f2f7ff"); land.addColorStop(0.15, "#4f9a68"); land.addColorStop(0.5, "#62b36a");
+  land.addColorStop(0.85, "#4f9a68"); land.addColorStop(1, "#f2f7ff");
   ctx.fillStyle = land;
   ctx.fill("evenodd");
   ctx.lineWidth = 2;
-  ctx.strokeStyle = "rgba(160,210,190,.4)";
+  ctx.strokeStyle = "rgba(220,255,230,.5)";
   ctx.stroke();
   return canvas;
 }
