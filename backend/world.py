@@ -4,6 +4,7 @@ import random
 import time
 
 import ai
+import decisions
 import market
 from capacity import region_capacity
 import racks as rk
@@ -229,6 +230,7 @@ def world_state(db, world, company, since_event=None):
         ],
         "capacity": region_capacity(dcs, own),
         "team": staff.team_state(db, company, tick),
+        "decisions": decisions.open_decisions(db, company["id"]),
         "research": research.state(db, company["id"], {h["code"]: h["name"] for h in (rk.hardware_from_row(r) for r in db.execute("SELECT * FROM hardware_types"))}),
         "contracts": [_contract_json(c) for c in own],
         "offers": [_contract_json(c) for c in offers],

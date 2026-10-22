@@ -132,3 +132,8 @@ canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
 .badge { display: inline-block; min-width: 1.2rem; padding: 0 .35rem; margin-left: .25rem; border-radius: 99px; background: var(--warn); color: #2b1e00; font-size: .75rem; font-weight: 700; text-align: center; }
 
 .item.locked { opacity: .5; cursor: not-allowed; }
+
+#decision { z-index: 60; }
+.warnbtn { background: var(--warn) !important; color: #2b1e00 !important; animation: pulse-btn 1.2s infinite; }
+@keyframes pulse-btn { 50% { filter: brightness(1.25); } }
+.warnbtn .badge { background: #2b1e00; color: var(--warn); }

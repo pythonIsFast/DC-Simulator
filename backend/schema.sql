@@ -297,3 +297,19 @@ CREATE TABLE IF NOT EXISTS company_settings (
     company_id  INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
     auto_accept INTEGER NOT NULL DEFAULT 1                -- sales staff signs contracts automatically
 );
+
+-- Big events that need a player decision (added without a schema bump: new table only).
+CREATE TABLE IF NOT EXISTS decisions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    kind           TEXT NOT NULL,
+    title          TEXT NOT NULL,
+    body           TEXT NOT NULL,
+    options_json   TEXT NOT NULL,                        -- [{label, hint, cost_cents, outcomes: [{p, text, bad, effects}]}]
+    default_option INTEGER NOT NULL DEFAULT 0,           -- applied when the time runs out
+    created_tick   INTEGER NOT NULL,
+    expires_tick   INTEGER NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'open',         -- open | resolved
+    result         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_decisions_company ON decisions(company_id, status);

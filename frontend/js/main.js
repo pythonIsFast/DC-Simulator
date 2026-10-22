@@ -8,6 +8,7 @@ import { createRackView } from "./rack.js";
 import { $, h, money } from "./util.js";
 import { toast, banner, run, moneyPopup, animateMoney, renderHud, resetMoney, bumpCash } from "./ui.js";
 import { renderGuide } from "./guide.js";
+import { renderDecisions, reopenDecision, resetDecisions } from "./decisions.js";
 import { renderContext, currentTemplate } from "./panels.js";
 import { toggleDrawer, addLog, resetDrawers } from "./drawers.js";
 import { sfx, setFanLevel, toggleMute, isMuted } from "./audio.js";
@@ -85,6 +86,7 @@ $("world-form").addEventListener("submit", async (ev) => {
 });
 
 $("logout").addEventListener("click", () => { setToken(null); showMenu("view-auth"); });
+$("btn-decisions").addEventListener("click", reopenDecision);
 $("btn-menu").addEventListener("click", () => { sfx.click(); showWorlds(); });
 
 // ------------------------------------------------------------------ views
@@ -164,6 +166,7 @@ bus.on("state", (state) => {
   if (!views) return;
   renderHud();
   renderGuide();
+  renderDecisions();
   views.globe.setData(state);
   const v = store.view;
   if (v.mode === "room") {
@@ -202,7 +205,7 @@ const EVENT_STYLE = {
   incident: "bad", breaker_trip: "bad", thermal_shutdown: "bad", contract_breached: "bad",
   grid_outage: "warn", heatwave: "warn", power_spike: "warn", sla_warning: "warn",
   contract_completed: "good", incident_absorbed: "good", rack_recovered: "good", market_boom: "good",
-  work_done: "good", promotion: "good", sales_signed: "good", research_done: "good", work_failed: "bad", proposal: "",
+  decision: "warn", work_done: "good", promotion: "good", sales_signed: "good", research_done: "good", work_failed: "bad", proposal: "",
 };
 
 bus.on("events", ({ events, initial }) => {
@@ -285,6 +288,7 @@ async function openWorld(id) {
     resetStore(id);
     resetMoney();
     resetDrawers();
+    resetDecisions();
     roomSig = rackSig = "";
     if (!store.hw.list.length) await loadHardware();
     ensureViews();

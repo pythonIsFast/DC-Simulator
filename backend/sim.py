@@ -10,6 +10,7 @@ import random
 
 import ai
 import market
+import decisions
 import racks as rk
 import research
 import staff
@@ -25,6 +26,8 @@ OFFLINE_TEXT = {
     "pdu_failure": "PDU failure",
     "switch_failure": "Switch failure",
     "cable_fault": "Cable fault",
+    "fire": "Fire damage",
+    "cyber_attack": "Cyber attack",
 }
 
 
@@ -350,6 +353,7 @@ def _run_company_tick(db, world, company, tick, rng, dcs, region_events):
     revenue = int(settle_contracts(db, world["id"], company, tick, ev, dcs) * (1.0 + rfx["revenue_mult"]))
     staff.process_orders(db, world, company, tick, rfx["tech_speed"])
     research.tick(db, world, company, tick)
+    decisions.expire(db, world, company, tick)
     expenses = {"power": ev["energy_cents"], "rent": ev["rent_cents"], "salary": staff.salary_total(db, company["id"])}
     book(db, world["id"], company["id"], tick, "revenue", revenue, "Customer contracts")
     for category, cents in expenses.items():
@@ -378,6 +382,7 @@ def tick_world(db, world, tick):
         ai.run_ai_day(db, world, tick, rng)
         for company in humans:
             staff.daily(db, world, company, tick, rng)
+            decisions.maybe_create(db, world, company, tick, rng)
         market.compute_market(db, wid, tick, persist=True)
         db.execute("DELETE FROM ledger WHERE world_id = ? AND tick < ?", (wid, tick - cfg.LEDGER_KEEP_TICKS))
         db.execute("DELETE FROM events WHERE world_id = ? AND tick < ? AND (ends_tick IS NULL OR ends_tick < ?)",

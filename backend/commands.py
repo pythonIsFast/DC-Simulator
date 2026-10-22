@@ -8,6 +8,7 @@ After a successful command the company is re-evaluated (sim.refresh_company).
 import json
 
 import builder
+import decisions
 import market
 import racks as rk
 import research
@@ -364,6 +365,14 @@ def cancel_contract(db, world, company, payload):
 
 
 # ---------------------------------------------------------------- staff
+
+@command("resolve_decision")
+def resolve_decision(db, world, company, payload):
+    try:
+        return decisions.resolve(db, world, company, _int(payload, "decision_id"), payload.get("option"))
+    except decisions.DecisionError as exc:
+        raise CommandError(str(exc))
+
 
 @command("start_research")
 def start_research(db, world, company, payload):
