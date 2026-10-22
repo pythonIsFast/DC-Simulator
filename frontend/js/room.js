@@ -1,7 +1,8 @@
-// Datacenter room view: instanced racks colored by heat/status, empty slots, heatmap floor.
+// Datacenter room view: open racks with their real devices (instanced per hardware type), status lights, heatmap floor.
 import * as THREE from "three";
 import { Orbit, applyEnvironment } from "./stage.js";
-import { perforatedTexture } from "./faceplates.js";
+import { perforatedTexture, frontTexture, railTexture, backTexture } from "./faceplates.js";
+import { store } from "./store.js";
 import { createPeople } from "./people.js";
 import { kw } from "./util.js";
 
@@ -9,6 +10,10 @@ const COLS = 5;
 const MAX_SLOTS = 20;
 export const slotPos = (s) => ({ x: ((s % COLS) - 2) * 1.0, z: (Math.floor(s / COLS) - 1.5) * 1.8 });
 const ROOM_W = 7, ROOM_D = 8.4;
+// Same rack dimensions as the rack view (19" rack, 44.5 mm per unit).
+const U_H = 0.0445, Y0 = 0.09, RACK_U = 42;
+const RACK_H = RACK_U * U_H + 2 * (Y0 - 0.01);
+const centerY = (uStart, u) => Y0 + (uStart - 1 + u / 2) * U_H;
 
 function floorTexture() {
   const c = document.createElement("canvas");
@@ -35,7 +40,7 @@ export function createRoomView(canvas, tooltip, handlers) {
   scene.background = new THREE.Color(0x070a10);
   scene.fog = new THREE.Fog(0x070a10, 12, 26);
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  const orbit = new Orbit(camera, canvas, { target: [0, 0.8, 0], dist: 9.5, minDist: 4, maxDist: 15, pitch: 0.75, yaw: 0.35, minPitch: 0.15, maxPitch: 1.35 });
+  const orbit = new Orbit(camera, canvas, { target: [0, 0.9, 0], dist: 7.5, minDist: 2.2, maxDist: 15, pitch: 0.75, yaw: 0.35, minPitch: 0.15, maxPitch: 1.35 });
 
   applyEnvironment(scene);
   scene.add(new THREE.AmbientLight(0x8899bb, 0.25));
@@ -67,13 +72,98 @@ export function createRoomView(canvas, tooltip, handlers) {
   scene.add(heatmap);
 
   // Racks (instanced), status LEDs (instanced), empty slots (instanced)
-  // Rack body: dark steel sides, perforated front door, no per-instance tint (heat is shown by a light strip).
-  const steel = new THREE.MeshStandardMaterial({ color: 0x1d232b, metalness: 0.85, roughness: 0.42 });
-  const door = new THREE.MeshStandardMaterial({ map: perforatedTexture(true, [2, 7]), metalness: 0.7, roughness: 0.5 });
-  const rackMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 2.0, 0.9), [steel, steel, steel, steel, door, steel], MAX_SLOTS);
-  rackMesh.castShadow = true; rackMesh.receiveShadow = true;
-  const heatMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, 1.8, 0.012), new THREE.MeshBasicMaterial(), MAX_SLOTS);
-  const ledMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.46, 0.05, 0.02), new THREE.MeshBasicMaterial(), MAX_SLOTS);
+  // The racks themselves are open frames with real devices (built in rebuild()). This invisible volume only receives clicks.
+  const rackMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.64, RACK_H, 0.66), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), MAX_SLOTS);
+  const heatMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.02, 1.9, 0.02), new THREE.MeshBasicMaterial(), MAX_SLOTS);
+  const ledMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.46, 0.04, 0.02), new THREE.MeshBasicMaterial(), MAX_SLOTS);
+  const contents = new THREE.Group();   // frames and devices, rebuilt when the racks change
+  scene.add(contents);
+  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x1b2028, metalness: 0.85, roughness: 0.38 });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x20252d, metalness: 0.6, roughness: 0.5 });
+  const perfMat = new THREE.MeshStandardMaterial({ map: perforatedTexture(true, [3, 12]), metalness: 0.5, roughness: 0.6, side: THREE.DoubleSide });
+  const railMat = new THREE.MeshStandardMaterial({ map: railTexture(), metalness: 0.6, roughness: 0.5 });
+  const backMat = new THREE.MeshBasicMaterial({ map: backTexture() });
+  const postGeo = new THREE.BoxGeometry(0.03, RACK_H, 0.03);
+  const panelGeo = new THREE.PlaneGeometry(0.6, RACK_H);
+  const railGeo = new THREE.PlaneGeometry(0.03, RACK_U * U_H);
+  const backGeo = new THREE.PlaneGeometry(0.47, RACK_U * U_H);
+  const topGeo = new THREE.BoxGeometry(0.56, 0.03, 0.6);
+  const plinthGeo = new THREE.BoxGeometry(0.58, 0.07, 0.62);
+  const deviceGeo = new Map();     // rack units -> geometry
+  const deviceMats = new Map();    // hardware code -> materials
+  const WHITE = new THREE.Color(0xffffff), DIM = new THREE.Color(0x4a4d55);
+
+  function geoFor(u) {
+    if (!deviceGeo.has(u)) deviceGeo.set(u, new THREE.BoxGeometry(0.46, u * U_H - 0.003, 0.5));
+    return deviceGeo.get(u);
+  }
+  function matsFor(hw) {
+    if (!deviceMats.has(hw.code)) {
+      const front = new THREE.MeshStandardMaterial({ map: frontTexture(hw), roughness: 0.42, metalness: 0.55 });
+      deviceMats.set(hw.code, [sideMat, sideMat, sideMat, sideMat, front, sideMat]);
+    }
+    return deviceMats.get(hw.code);
+  }
+
+  // Frame of one rack: rails, perforated side panels, top, plinth and back panel.
+  function addFrame(x, z) {
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    for (const sx of [-0.256, 0.256]) for (const sz of [0.27, -0.27]) {
+      const post = new THREE.Mesh(postGeo, darkMetal);
+      post.position.set(sx, RACK_H / 2, sz);
+      g.add(post);
+    }
+    for (const sx of [-0.256, 0.256]) {
+      const rail = new THREE.Mesh(railGeo, railMat);
+      rail.position.set(sx, Y0 + (RACK_U * U_H) / 2, 0.2851);
+      g.add(rail);
+    }
+    for (const side of [-1, 1]) {
+      const panel = new THREE.Mesh(panelGeo, perfMat);
+      panel.rotation.y = Math.PI / 2;
+      panel.position.set(side * 0.272, RACK_H / 2, 0);
+      g.add(panel);
+    }
+    const top = new THREE.Mesh(topGeo, darkMetal);
+    top.position.y = RACK_H;
+    const plinth = new THREE.Mesh(plinthGeo, darkMetal);
+    plinth.position.y = 0.06;
+    const back = new THREE.Mesh(backGeo, backMat);
+    back.position.set(0, Y0 + (RACK_U * U_H) / 2, -0.26);
+    g.add(top, plinth, back);
+    contents.add(g);
+  }
+
+  // All devices of the same hardware type are one InstancedMesh (few draw calls even with hundreds of devices).
+  function rebuildContents() {
+    for (const child of [...contents.children]) if (child.isInstancedMesh) child.dispose();
+    contents.clear();
+    const byCode = new Map();
+    for (const r of racks) {
+      const p = slotPos(r.slot);
+      addFrame(p.x, p.z);
+      for (const it of r.items) {
+        if (!store.hw.byCode[it.code]) continue;
+        if (!byCode.has(it.code)) byCode.set(it.code, []);
+        byCode.get(it.code).push({ p, it, r });
+      }
+    }
+    for (const [code, list] of byCode) {
+      const hw = store.hw.byCode[code];
+      const mesh = new THREE.InstancedMesh(geoFor(hw.u_height), matsFor(hw), list.length);
+      list.forEach(({ p, it, r }, i) => {
+        tmpM.makeTranslation(p.x, centerY(it.u_start, hw.u_height), p.z);
+        mesh.setMatrixAt(i, tmpM);
+        mesh.setColorAt(i, r.online ? WHITE : DIM);   // offline racks look dark
+      });
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      contents.add(mesh);
+    }
+  }
   const slotMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.6, 0.9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.22, side: THREE.DoubleSide }), MAX_SLOTS);
   for (const m of [rackMesh, ledMesh, slotMesh, heatMesh]) { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; scene.add(m); }
   const cracGroup = new THREE.Group();
@@ -98,15 +188,15 @@ export function createRoomView(canvas, tooltip, handlers) {
     slotMesh.count = emptySlots.length;
     racks.forEach((r, i) => {
       const p = slotPos(r.slot);
-      tmpM.makeTranslation(p.x, 1.0, p.z);
+      tmpM.makeTranslation(p.x, RACK_H / 2, p.z);
       rackMesh.setMatrixAt(i, tmpM);
-      tmpM.makeTranslation(p.x, 1.82, p.z + 0.46);
+      tmpM.makeTranslation(p.x, RACK_H + 0.04, p.z + 0.24);
       ledMesh.setMatrixAt(i, tmpM);
       let color;
       if (r.items.length === 0) color = tmpC.copy(EMPTY);
       else if (!r.online) color = tmpC.copy(OFF);
       else color = heatColor(r.stats.heat_w / 9000, tmpC);
-      tmpM.makeTranslation(p.x + 0.25, 1.0, p.z + 0.456);
+      tmpM.makeTranslation(p.x + 0.31, 1.0, p.z + 0.27);
       heatMesh.setMatrixAt(i, tmpM);
       heatMesh.setColorAt(i, color);
     });
@@ -121,6 +211,8 @@ export function createRoomView(canvas, tooltip, handlers) {
     ledMesh.instanceMatrix.needsUpdate = true;
     heatMesh.instanceMatrix.needsUpdate = true;
     if (heatMesh.instanceColor) heatMesh.instanceColor.needsUpdate = true;
+
+    rebuildContents();
 
     // Cooling units along the back wall
     cracGroup.clear();

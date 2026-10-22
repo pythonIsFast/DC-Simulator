@@ -234,7 +234,7 @@ export function createPeople(scene, slotPos) {
     },
     update(dt, t) {
       for (const p of people.values()) stepPerson(p, dt, t);
-      beacons.forEach((b, i) => { if (beaconRacks[i]) b.light.intensity = 10 + Math.sin(t * 8 + i) * 9;   // candela (physical light units) });
+      beacons.forEach((b, i) => { if (beaconRacks[i]) b.light.intensity = 10 + Math.sin(t * 8 + i) * 9;   });
       site.children[0].material.opacity = 0.12 + Math.sin(t * 3) * 0.05;
       // smoke particles rise from smoking racks
       const n = smokeRacks.length ? SMOKE_N : 0;
