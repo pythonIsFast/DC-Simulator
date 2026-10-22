@@ -12,6 +12,43 @@ const stars = (n) => "★".repeat(n) + "☆".repeat(5 - n);
 const hours = (t) => `${Math.max(1, Math.round(t))} h`;
 const tile = (label, value) => h("div", { class: "tile" }, h("div", { class: "muted", style: "font-size:.75rem" }, label), h("div", { class: "big" }, value));
 
+const LEVELS = [[0, "Off"], [1, "Low"], [2, "Normal"], [3, "High"]];
+const PRIORITY_ROWS = [
+  ["capacity", "New capacity", "Racks and servers for customer demand"],
+  ["reliability", "Reliability", "Redundancy, bigger PDUs"],
+  ["infrastructure", "Infrastructure", "Cooling, power, uplinks"],
+  ["expansion", "Expansion", "New datacenters"],
+  ["cleanup", "Rack style", "Rebuild mixed racks"],
+  ["modernize", "Modernization", "Replace old servers with denser ones"],
+];
+
+function select(options, value, onchange) {
+  return h("select", { onchange: (e) => onchange(e.target.value) },
+    options.map(([v, label]) => h("option", { value: String(v), selected: String(v) === String(value) }, label)));
+}
+
+const field = (label, control) => h("div", { class: "row", style: "justify-content:space-between;margin:.25rem 0" }, h("span", { style: "font-size:.9rem" }, label), h("div", { style: "min-width:11rem" }, control));
+
+// What the player wants from the admins: style, priorities, focus, budget.
+function policySection(t) {
+  const p = t.policy;
+  const save = (patch) => run("set_admin_policy", { policy: patch }, "click");
+  const box = h("details", { open: true }, h("summary", {}, "Admin priorities"));
+  box.append(
+    h("p", { class: "muted", style: "font-size:.82rem;margin:.3rem 0" }, `Each admin suggests at most one plan every ${t.proposal_interval_days} days. A new admin needs two days to get started.`),
+    field("Rack style", select([["pure", "One kind per rack"], ["mixed", "Mixed racks allowed"]], p.rack_style, (v) => save({ rack_style: v }))),
+    field("Focus", select([["auto", "Wherever customers wait"], ["cpu", "Compute"], ["storage_tb", "Storage"], ["gpu", "GPU / AI"]], p.focus, (v) => save({ focus: v }))),
+    field("Max cost per plan", select([[25, "25 % of cash"], [50, "50 % of cash"], [90, "90 % of cash"]], p.budget_pct, (v) => save({ budget_pct: Number(v) }))),
+    field("Redundancy (new racks)", select([["auto", "By admin skill"], ["always", "Always"], ["never", "Never (cheaper)"]], p.redundancy, (v) => save({ redundancy: v }))),
+    h("h3", {}, "What should they work on?"),
+    ...PRIORITY_ROWS.map(([key, label, hint]) => h("div", { style: "margin:.25rem 0" },
+      field(label, select(LEVELS, p.priorities[key], (v) => save({ priorities: { [key]: Number(v) } }))),
+      h("div", { class: "muted", style: "font-size:.75rem;margin-top:-.15rem" }, hint))),
+  );
+  if (p.rack_style === "pure") box.append(h("p", { class: "muted", style: "font-size:.8rem" }, "Admins also propose to rebuild existing racks that mix compute, storage and GPU servers."));
+  return box;
+}
+
 function proposalCard(p, hasTech) {
   const adds = Object.entries(p.adds || {}).map(([k, v]) => `${num(v)} ${{ cpu: "CPU", storage_tb: "TB", gpu: "GPU" }[k]}`).join(", ");
   return h("div", { class: "item" },
@@ -19,6 +56,7 @@ function proposalCard(p, hasTech) {
     h("div", { class: "sub" }, `Proposed by ${p.admin || "an admin"} · ${hours(p.est_ticks)} to build`),
     ...p.lines.map((l) => h("div", { class: "sub", style: "margin-top:.2rem" }, l)),
     p.revenue_cents_per_tick ? h("div", { class: "good", style: "font-size:.88rem;margin-top:.2rem" }, `Could earn about ${money2(p.revenue_cents_per_tick)}/h when sold${adds ? " (" + adds + ")" : ""}`) : null,
+    p.removes && p.removes.length ? h("div", { class: "sub", style: "margin-top:.2rem" }, "Removes: " + p.removes.map((r) => `${r.count}x ${r.name}`).join(", ")) : null,
     p.items.length ? h("details", {}, h("summary", {}, "What gets installed"), ...p.items.map((i) => h("div", { class: "sub" }, `${i.count}× ${i.name}`))) : null,
     !hasTech ? h("div", { class: "warn", style: "font-size:.85rem;margin-top:.3rem" }, "You have no technician yet: nobody can build this.") : null,
     h("div", { class: "row", style: "margin-top:.4rem" },
@@ -61,6 +99,7 @@ export function teamView(s) {
         h("button", { class: "secondary small", onclick: () => run("set_auto_accept", { enabled: !t.auto_accept }, "click") }, t.auto_accept ? "Turn off" : "Turn on"))));
   }
 
+  box.append(policySection(t));
   box.append(h("h3", {}, "Plans from your admins"));
   if (!hasAdmin) box.append(h("p", { class: "muted" }, "Hire an admin: they suggest racks (with an exact layout), new datacenters and upgrades. You decide what gets built."));
   else if (!t.proposals.length) box.append(h("p", { class: "muted" }, "No plans right now. Admins come up with new ideas every day."));
