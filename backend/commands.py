@@ -387,6 +387,7 @@ def start_research(db, world, company, payload):
 def set_admin_policy(db, world, company, payload):
     try:
         staff.set_policy(db, company["id"], payload.get("policy"))
+        staff.run_auto_approve(db, world, company)   # applies to plans that are already waiting
     except staff.StaffError as exc:
         raise CommandError(str(exc))
     return {}

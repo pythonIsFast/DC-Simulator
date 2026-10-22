@@ -142,6 +142,7 @@ DEFAULT_POLICY = {
     "focus": "auto",                 # auto | cpu | storage_tb | gpu
     "budget_pct": 50,                # a single plan may cost at most this share of the cash
     "redundancy": "auto",            # new racks: auto (by admin skill) | always | never
+    "auto_approve": "off",           # off | cheap (small plans, no new datacenters) | all (within the cost limit)
     "priorities": {"capacity": 2, "reliability": 2, "infrastructure": 2, "expansion": 1, "cleanup": 2, "modernize": 1},
 }
 CAT_RESOURCE = {"server_cpu": "cpu", "server_storage": "storage_tb", "server_gpu": "gpu"}
@@ -163,7 +164,8 @@ def set_policy(db, company_id, data):
         raise StaffError("Invalid policy")
     policy = get_policy(db, company_id)
     choices = {"rack_style": ("pure", "mixed"), "focus": ("auto", "cpu", "storage_tb", "gpu"),
-               "budget_pct": (25, 50, 90), "redundancy": ("auto", "always", "never")}
+               "budget_pct": (25, 50, 90), "redundancy": ("auto", "always", "never"),
+               "auto_approve": ("off", "cheap", "all")}
     for key, allowed in choices.items():
         if key in data:
             if data[key] not in allowed or isinstance(data[key], bool):
@@ -919,6 +921,32 @@ def sales_accept(db, world, company, tick):
     return signed
 
 
+def run_auto_approve(db, world, company, tick=None):
+    """Approve open plans automatically as the player's policy allows (cash and validity are still checked)."""
+    policy = get_policy(db, company["id"])
+    mode = policy["auto_approve"]
+    if mode == "off":
+        return 0
+    world = dict(world, tick=world["tick"] if tick is None else tick)
+    approved = 0
+    for p in db.execute("SELECT * FROM proposals WHERE company_id = ? AND status = 'open' ORDER BY id", (company["id"],)).fetchall():
+        cash = _cash(db, company["id"])
+        if mode == "cheap":
+            allowed = p["cost_cents"] <= 0.10 * cash and p["kind"] != "new_datacenter"
+        else:
+            allowed = p["cost_cents"] <= cash * policy["budget_pct"] / 100.0
+        if not allowed:
+            continue
+        try:
+            approve(db, world, company, p["id"])
+        except StaffError:
+            continue
+        add_event(db, world["id"], world["tick"], "auto_approved", "Auto-approved: %s ($%s)" % (p["title"], "{:,.0f}".format(p["cost_cents"] / 100)),
+                  company_id=company["id"])
+        approved += 1
+    return approved
+
+
 def daily(db, world, company, tick, rng):
     ensure_candidates(db, company["id"], tick, rng)
     sales_accept(db, world, company, tick)
@@ -926,6 +954,7 @@ def daily(db, world, company, tick, rng):
     db.execute("DELETE FROM work_orders WHERE company_id = ? AND status IN ('done', 'failed') AND created_tick < ?", (company["id"], tick - 24 * 10))
     admins = db.execute("SELECT * FROM employees WHERE company_id = ? AND role = 'admin'", (company["id"],)).fetchall()
     generate_proposals(db, world, company, tick, rng, admins)
+    run_auto_approve(db, world, company, tick)
 
 
 # ---------------------------------------------------------------- client state

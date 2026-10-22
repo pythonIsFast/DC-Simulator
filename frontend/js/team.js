@@ -39,6 +39,8 @@ function policySection(t) {
     field("Rack style", select([["pure", "One kind per rack"], ["mixed", "Mixed racks allowed"]], p.rack_style, (v) => save({ rack_style: v }))),
     field("Focus", select([["auto", "Wherever customers wait"], ["cpu", "Compute"], ["storage_tb", "Storage"], ["gpu", "GPU / AI"]], p.focus, (v) => save({ focus: v }))),
     field("Max cost per plan", select([[25, "25 % of cash"], [50, "50 % of cash"], [90, "90 % of cash"]], p.budget_pct, (v) => save({ budget_pct: Number(v) }))),
+    field("Auto-approve plans", select([["off", "Off: I decide"], ["cheap", "Small plans only"], ["all", "All within the cost limit"]], p.auto_approve, (v) => save({ auto_approve: v }))),
+    ...(p.auto_approve === "off" ? [] : [h("p", { class: "muted", style: "font-size:.8rem;margin:0 0 .3rem" }, p.auto_approve === "cheap" ? "Plans up to 10 % of your cash are approved automatically. New datacenters always ask you." : `Every plan up to ${p.budget_pct} % of your cash is approved automatically, including new datacenters.`)]),
     field("Redundancy (new racks)", select([["auto", "By admin skill"], ["always", "Always"], ["never", "Never (cheaper)"]], p.redundancy, (v) => save({ redundancy: v }))),
     h("h3", {}, "What should they work on?"),
     ...PRIORITY_ROWS.map(([key, label, hint]) => h("div", { style: "margin:.25rem 0" },
