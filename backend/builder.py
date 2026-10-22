@@ -66,6 +66,26 @@ def place_layout(db, rack_id, layout):
     return total
 
 
+def append_layout(db, rack_id, layout):
+    """Add devices to an existing rack (validated against what is already mounted). Returns the price in cents."""
+    rows = db.execute(
+        "SELECT i.id, i.rack_id, i.u_start, h.code, h.category, h.name, h.u_height, h.power_w, h.heat_w, h.ports,"
+        " h.price_cents, h.attrs_json FROM rack_items i JOIN hardware_types h ON h.id = i.hardware_type_id WHERE i.rack_id = ?",
+        (rack_id,)).fetchall()
+    items = [rk.item_from_row(r) for r in rows]
+    total = 0
+    for entry in layout:
+        hw = hw_by_code(db, entry.get("code"))
+        err = rk.placement_error(items, hw, entry.get("u_start"))
+        if err:
+            raise BuildError(err)
+        cur = db.execute("INSERT INTO rack_items (rack_id, hardware_type_id, u_start) VALUES (?, ?, ?)",
+                         (rack_id, hw["id"], entry["u_start"]))
+        items.append({**hw, "id": cur.lastrowid, "u_start": entry["u_start"]})
+        total += hw["price_cents"]
+    return total
+
+
 def insert_rack(db, world, dc_id, name, slot, layout):
     cur = db.execute("INSERT INTO racks (datacenter_id, name, slot, created_tick) VALUES (?, ?, ?, ?)",
                      (dc_id, name, slot, world["tick"]))

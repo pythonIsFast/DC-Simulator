@@ -139,6 +139,64 @@ def _gain_xp(db, world, company, emp_id, tick):
 
 # ---------------------------------------------------------------- rack design (what admins propose)
 
+def _pick_server(servers, resource, skill):
+    if skill >= 4:
+        return max(servers, key=lambda h: h["attrs"][resource] / max(1, h["power_w"]))
+    if skill == 3:
+        return max(servers, key=lambda h: h["attrs"][resource] / h["price_cents"])
+    return servers[len(servers) // 2]
+
+
+def design_extension(rack, hws, resource, skill):
+    """Servers for the free space of an existing rack, as long as power, ports and (if present) redundancy hold."""
+    servers = sorted((h for h in hws if h["category"] == RESOURCE_CATEGORY[resource]), key=lambda h: h["price_cents"])
+    if not servers:
+        return None
+    server = _pick_server(servers, resource, skill)
+    items = list(rack["items"])
+    keep_redundant = rk.rack_stats(items)["redundant"] and skill >= 3
+    added = []
+    for n in range(40):
+        pos = next((u for u in range(1, cfg.RACK_U - server["u_height"] + 2) if rk.placement_error(items, server, u) is None), None)
+        if pos is None:
+            break
+        trial = items + [{**server, "id": 100000 + n, "u_start": pos}]
+        st = rk.rack_stats(trial)
+        if st["overload"] or len(st["connected_ids"]) < st["server_count"] or st["load_w"] > 0.95 * st["limit_w"]:
+            break
+        if keep_redundant and not st["redundant"]:
+            break
+        items = trial
+        added.append({"code": server["code"], "u_start": pos})
+    return added or None
+
+
+def design_redundancy(rack, hws):
+    """A second PDU and a second ToR switch for a rack that has only one of them."""
+    st = rack["stats"]
+    by_code = {h["code"]: h for h in hws}
+    pdus = [i for i in rack["items"] if i["category"] == "pdu"]
+    tors = [i for i in rack["items"] if i["category"] == "switch_tor"]
+    trial = list(rack["items"])
+    added = []
+
+    def put(hw):
+        for u in range(cfg.RACK_U - hw["u_height"] + 1, 0, -1):
+            if rk.placement_error(trial, hw, u) is None:
+                trial.append({**hw, "id": 200000 + len(added), "u_start": u})
+                added.append({"code": hw["code"], "u_start": u})
+                return True
+        return False
+
+    if len(pdus) == 1 and st["load_w"] <= pdus[0]["attrs"].get("max_w", 0):
+        fits = sorted((h for h in hws if h["category"] == "pdu" and h["attrs"]["max_w"] >= st["load_w"]), key=lambda h: h["price_cents"])
+        if fits:
+            put(fits[0])
+    if len(tors) == 1 and tors[0]["code"] in by_code:
+        put(by_code[tors[0]["code"]])
+    return added or None
+
+
 def design_rack(hws, resource, skill):
     """Rule-based rack layout. Higher skill = better server choice, redundancy, fans and cabling.
 
@@ -148,12 +206,7 @@ def design_rack(hws, resource, skill):
     servers = sorted((h for h in hws if h["category"] == RESOURCE_CATEGORY[resource]), key=lambda h: h["price_cents"])
     if not servers or "pdu_7k2" not in by_code:
         return None
-    if skill >= 4:
-        server = max(servers, key=lambda h: h["attrs"][resource] / max(1, h["power_w"]))
-    elif skill == 3:
-        server = max(servers, key=lambda h: h["attrs"][resource] / h["price_cents"])
-    else:
-        server = servers[len(servers) // 2]
+    server = _pick_server(servers, resource, skill)
     redundant = skill >= 3
     tor = by_code["tor_48" if skill >= 2 else "tor_24"]
     n_pdu, n_tor = (2, 2) if redundant else (1, 1)
@@ -226,6 +279,10 @@ def _planned_keys(db, company_id):
                 keys.add(("upgrade", plan["dc_id"], plan["code"]))
             elif plan["type"] == "new_rack":
                 keys.add(("new_rack", plan["dc_id"]))
+            elif plan["type"] == "extend_rack":
+                keys.add(("extend_rack", plan["rack_id"]))
+            elif plan["type"] == "add_redundancy":
+                keys.add(("redundancy", plan["rack_id"]))
             else:
                 keys.add(("new_datacenter", plan["region_id"]))
     return keys
@@ -267,8 +324,8 @@ def _cash(db, company_id):
     return db.execute("SELECT cash_cents FROM companies WHERE id = ?", (company_id,)).fetchone()[0]
 
 
-def _propose_rack(db, world, company, admin, tick, rng, dcs, cap, hws, keys, regions):
-    # Where do open customer offers exceed what we can serve?
+def _gaps(db, world, dcs, cap):
+    """Regions and resources where open customer offers exceed what we can serve, biggest gap first."""
     gaps = []
     for row in db.execute("SELECT region_id, resource, SUM(units) AS u, COUNT(*) AS n FROM contracts"
                           " WHERE world_id = ? AND status = 'offered' GROUP BY region_id, resource", (world["id"],)):
@@ -280,9 +337,79 @@ def _propose_rack(db, world, company, admin, tick, rng, dcs, cap, hws, keys, reg
         gap_eq = gap * cfg.UNIT_WEIGHT[row["resource"]]
         if gap_eq >= 20:
             gaps.append((gap_eq, rid, row["resource"], row["n"], row["u"], free))
+    gaps.sort(reverse=True)
+    return gaps
+
+
+def _propose_extend(db, world, company, admin, tick, rng, dcs, cap, hws, keys, regions):
+    for _, rid, res, n_offers, units, free in _gaps(db, world, dcs, cap):
+        racks = [(dc, r) for dc in dcs if dc["region_id"] == rid for r in dc["racks"]
+                 if r["status"] == "ok" and ("extend_rack", r["id"]) not in keys and r["stats"]["pdu_count"] and r["stats"]["tor_count"] and r["stats"]["free_u"] >= 1]
+        racks.sort(key=lambda x: -x[1]["stats"]["free_u"])
+        for dc, rack in racks:
+            add = design_extension(rack, hws, res, admin["skill"])
+            if not add:
+                continue
+            by_code = {h["code"]: h for h in hws}
+            cost = sum(by_code[a["code"]]["price_cents"] for a in add)
+            if cost > _cash(db, company["id"]) * 0.9:
+                continue
+            server = by_code[add[0]["code"]]
+            gained = len(add) * server["attrs"][res]
+            rate = {"cpu": 1.0, "storage_tb": 1.0, "gpu": cfg.KIND_RATE_MULT["ai"]}[res]
+            summary = {
+                "lines": ["Why: %d open offers ask for %s %s, you have %s free." % (n_offers, "{:,.0f}".format(units), RESOURCE_UNIT[res], "{:,.0f}".format(free)),
+                          "%s has free space: add %d more servers without touching the existing setup." % (rack["name"], len(add)),
+                          "Adds %s %s." % ("{:,.0f}".format(gained), RESOURCE_UNIT[res])],
+                "items": [{"code": server["code"], "name": server["name"], "count": len(add)}], "adds": {res: gained},
+                "revenue_cents_per_tick": int(gained * cfg.UNIT_WEIGHT[res] * cfg.BASE_RATE_CENTS * rate),
+            }
+            plan = {"type": "extend_rack", "dc_id": dc["id"], "rack_id": rack["id"], "slot": rack["slot"], "layout": add}
+            _insert_proposal(db, world, company, admin, tick, "extend_rack", "Add %d x %s to %s (%s)" % (len(add), server["name"], rack["name"], dc["name"]),
+                             plan, summary, cost, int(2 + 0.5 * len(add)))
+            return True
+    return False
+
+
+def _propose_redundancy(db, world, company, admin, tick, rng, dcs, hws, keys):
+    if admin["skill"] < 3:
+        return False
+    by_code = {h["code"]: h for h in hws}
+    for dc in dcs:
+        for rack in dc["racks"]:
+            st = rack["stats"]
+            if rack["status"] != "ok" or st["server_count"] == 0 or st["redundant"] or ("redundancy", rack["id"]) in keys:
+                continue
+            add = design_redundancy(rack, hws)
+            if not add:
+                continue
+            cost = sum(by_code[a["code"]]["price_cents"] for a in add)
+            if cost > _cash(db, company["id"]) * 0.9:
+                continue
+            counts = {}
+            for a in add:
+                counts[a["code"]] = counts.get(a["code"], 0) + 1
+            what = []
+            if st["pdu_count"] < 2:
+                what.append("a second PDU")
+            if st["tor_count"] < 2:
+                what.append("a second ToR switch")
+            summary = {
+                "lines": ["%s has no redundancy: if its PDU or switch fails, the whole rack goes offline." % rack["name"],
+                          "Adds %s. Redundant racks absorb failures and can serve premium contracts." % " and ".join(what)],
+                "items": [{"code": c, "name": by_code[c]["name"], "count": n} for c, n in counts.items()], "adds": {}, "revenue_cents_per_tick": 0,
+            }
+            plan = {"type": "add_redundancy", "dc_id": dc["id"], "rack_id": rack["id"], "slot": rack["slot"], "layout": add}
+            _insert_proposal(db, world, company, admin, tick, "add_redundancy", "Add redundancy to %s (%s)" % (rack["name"], dc["name"]),
+                             plan, summary, cost, int(2 + 0.5 * len(add)))
+            return True
+    return False
+
+
+def _propose_rack(db, world, company, admin, tick, rng, dcs, cap, hws, keys, regions):
+    gaps = _gaps(db, world, dcs, cap)
     if not gaps:
         return False
-    gaps.sort(reverse=True)
     for _, rid, res, n_offers, units, free in gaps:
         candidates = [dc for dc in dcs if dc["region_id"] == rid and len(dc["racks"]) < dc["max_racks"] and ("new_rack", dc["id"]) not in keys]
         if not candidates:
@@ -377,6 +504,8 @@ def generate_proposals(db, world, company, tick, rng, admins, per_admin=None):
                 return created
             before = _planned_keys(db, company["id"])
             ok = (_propose_upgrade(db, world, company, admin, tick, dcs, hws, keys)
+                  or _propose_redundancy(db, world, company, admin, tick, rng, dcs, hws, keys)
+                  or _propose_extend(db, world, company, admin, tick, rng, dcs, cap, hws, keys, regions)
                   or _propose_rack(db, world, company, admin, tick, rng, dcs, cap, hws, keys, regions)
                   or _propose_datacenter(db, world, company, admin, tick, rng, dcs, keys, regions, info))
             if not ok:
@@ -411,6 +540,11 @@ def reject(db, company, proposal_id):
 
 
 def _validate_plan(db, company, plan):
+    if plan["type"] in ("extend_rack", "add_redundancy"):
+        rack = db.execute("SELECT r.id FROM racks r JOIN datacenters d ON d.id = r.datacenter_id WHERE r.id = ? AND d.company_id = ?",
+                          (plan["rack_id"], company["id"])).fetchone()
+        if rack is None:
+            raise StaffError("The rack no longer exists")
     if plan["type"] in ("new_rack", "upgrade"):
         dc = db.execute("SELECT id FROM datacenters WHERE id = ? AND company_id = ? AND status = 'active'", (plan["dc_id"], company["id"])).fetchone()
         if dc is None:
@@ -430,6 +564,12 @@ def _execute_plan(db, world, company, plan):
         if slot is None:
             raise builder.BuildError("The datacenter is full")
         builder.insert_rack(db, world, dc["id"], "Rack %d" % (slot + 1), slot, plan["layout"])
+    elif plan["type"] in ("extend_rack", "add_redundancy"):
+        rack = db.execute("SELECT r.id FROM racks r JOIN datacenters d ON d.id = r.datacenter_id WHERE r.id = ? AND d.company_id = ?",
+                          (plan["rack_id"], company["id"])).fetchone()
+        if rack is None:
+            raise builder.BuildError("The rack no longer exists")
+        builder.append_layout(db, rack["id"], plan["layout"])
     elif plan["type"] == "upgrade":
         dc = db.execute("SELECT id FROM datacenters WHERE id = ? AND company_id = ?", (plan["dc_id"], company["id"])).fetchone()
         if dc is None:
@@ -559,7 +699,8 @@ def team_state(db, company, tick):
         "employees": [{"id": e["id"], "name": e["name"], "role": e["role"], "skill": e["skill"], "xp": e["xp"],
                        "xp_needed": cfg.XP_PER_LEVEL * e["skill"], "salary_cents_per_tick": e["salary_cents_per_tick"],
                        "status": e["status"], "task": e["order_title"], "order_kind": e["order_kind"],
-                       "dc_id": json.loads(e["order_plan"]).get("dc_id") if e["order_plan"] else None} for e in emps],
+                       "dc_id": json.loads(e["order_plan"]).get("dc_id") if e["order_plan"] else None,
+                       "slot": json.loads(e["order_plan"]).get("slot") if e["order_plan"] else None} for e in emps],
         "candidates": [{"id": c["id"], "name": c["name"], "role": c["role"], "skill": c["skill"],
                         "salary_cents_per_tick": c["salary_cents_per_tick"], "hire_cost_cents": c["hire_cost_cents"],
                         "expires_tick": c["expires_tick"]} for c in cands],
