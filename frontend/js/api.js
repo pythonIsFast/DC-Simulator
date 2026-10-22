@@ -20,6 +20,7 @@ async function request(method, path, body) {
 
 export const api = {
   register: (username, password) => request("POST", "/api/auth/register", { username, password }),
+  local: () => request("POST", "/api/auth/local"),
   login: (username, password) => request("POST", "/api/auth/login", { username, password }),
   listWorlds: () => request("GET", "/api/worlds"),
   createWorld: (name, company_name, ai_count) => request("POST", "/api/worlds", { name, company_name, ai_count }),

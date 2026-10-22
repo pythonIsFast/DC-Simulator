@@ -44,6 +44,13 @@ The SQLite database is created automatically in `backend/instance/`.
 
 Authenticated routes need `Authorization: Bearer <token>`.
 
+## Login
+
+By default (`DC_LOCAL_MODE` unset or `1`) there is no login: the frontend gets
+a token for a reserved `local` user via `POST /api/auth/local`. For
+multiplayer deployments start the server with `DC_LOCAL_MODE=0`; then the
+endpoint returns 403 and the login/register form is shown.
+
 ## Notes
 
 - 1 tick = 1 in-game hour. At 1x one tick takes 10 real seconds

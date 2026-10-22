@@ -32,3 +32,6 @@ def _load_secret_key():
 class Config:
     DATABASE = os.environ.get("DC_DATABASE", os.path.join(INSTANCE_DIR, "dc.sqlite3"))
     SECRET_KEY = _load_secret_key()
+    # Singleplayer without login: the server hands out a token for one local user.
+    # Set DC_LOCAL_MODE=0 for multiplayer deployments (login required).
+    LOCAL_MODE = os.environ.get("DC_LOCAL_MODE", "1") != "0"

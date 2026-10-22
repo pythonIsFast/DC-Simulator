@@ -5,6 +5,19 @@ const $ = (id) => document.getElementById(id);
 const views = ["view-auth", "view-worlds", "view-world"];
 let currentWorldId = null;
 let pollTimer = null;
+let localMode = false; // true: server issues a token without login (singleplayer)
+
+// Local singleplayer: get a token silently. Returns false if the server requires a login.
+async function startLocalSession() {
+  try {
+    setToken((await api.local()).token);
+    localMode = true;
+    return true;
+  } catch {
+    localMode = false;
+    return false;
+  }
+}
 
 function show(view) {
   views.forEach((v) => ($(v).hidden = v !== view));
@@ -12,10 +25,12 @@ function show(view) {
   $("msg").textContent = "";
 }
 
-const fail = (e) => {
+const fail = async (e) => {
   if (e.status === 401 && getToken()) {
+    // Expired token: renew silently in local mode, otherwise ask for login.
+    if (localMode && (await startLocalSession())) return showWorlds();
     setToken(null);
-    show("view-auth");
+    return show("view-auth");
   }
   $("msg").textContent = e.message;
 };
@@ -30,6 +45,7 @@ function li(text) {
 
 async function showWorlds() {
   show("view-worlds");
+  $("who-line").hidden = localMode;
   $("who").textContent = localStorage.getItem("dc_user") || "";
   try {
     const { worlds } = await api.listWorlds();
@@ -105,4 +121,8 @@ $("speed-buttons").addEventListener("click", async (ev) => {
 $("logout").addEventListener("click", () => { setToken(null); show("view-auth"); });
 $("back").addEventListener("click", showWorlds);
 
-getToken() ? showWorlds() : show("view-auth");
+// Boot: local mode needs no login; otherwise reuse a stored token or show the login form.
+(async () => {
+  if (await startLocalSession()) return showWorlds();
+  getToken() ? showWorlds() : show("view-auth");
+})();
