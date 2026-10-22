@@ -4,6 +4,7 @@ import { store, bus, regionById } from "./store.js";
 import { run, toast } from "./ui.js";
 import { sfx } from "./audio.js";
 import { capacityBlock, RES_LABEL } from "./capacity.js";
+import { teamView } from "./team.js";
 
 let open = null;       // name of the open drawer or null
 let tab = "offers";
@@ -30,13 +31,13 @@ export function renderDrawer(force = false) {
   const s = store.state;
   if (!open || !s) { el.hidden = true; return; }
   const sig = open + tab + JSON.stringify(open === "contracts" ? [s.offers, s.contracts, s.capacity]
-    : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents, log.length] : open === "goals" ? s.milestones : log.length);
+    : open === "team" ? s.team : open === "market" ? [s.market_share, s.rivals, s.company.net_worth_cents, log.length] : open === "goals" ? s.milestones : log.length);
   if (!force && sig === lastSig) return;
   lastSig = sig;
   el.hidden = false;
   const scroll = el.scrollTop;
-  const body = { contracts: contractsView, market: marketView, log: logView, goals: goalsView }[open](s);
-  el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Overview", log: "Event log", goals: "Goals" }[open]),
+  const body = { contracts: contractsView, market: marketView, log: logView, goals: goalsView, team: teamView }[open](s);
+  el.replaceChildren(h("div", { class: "row" }, h("h2", { style: "flex:1;margin:0" }, { contracts: "Contracts", market: "Overview", log: "Event log", goals: "Goals", team: "Team" }[open]),
     h("button", { class: "secondary small", onclick: () => toggleDrawer(open) }, "Close")), body);
   keepDetails(el, open);
   el.scrollTop = scroll;
@@ -110,7 +111,7 @@ function marketView(s) {
     stat("Customers pay", "+" + money2(b.revenue || 0), "good"),
     stat("Electricity", "-" + money2(-(b.power || 0))),
     stat("Rent", "-" + money2(-(b.rent || 0))),
-    stat("Staff", "-" + money2(-(b.staff || 0))),
+    stat("Salaries", "-" + money2(-(b.salary || 0))),
     h("div", { class: "stat", style: "border-top:1px solid var(--line);margin-top:.2rem;padding-top:.3rem;font-weight:600" },
       h("span", {}, "Profit"), h("span", { class: net >= 0 ? "good" : "bad" }, (net >= 0 ? "+" : "-") + money2(Math.abs(net)))));
 

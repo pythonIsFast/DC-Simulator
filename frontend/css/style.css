@@ -128,3 +128,5 @@ canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
 .rackcard.add { display: flex; align-items: center; justify-content: center; border-style: dashed; color: var(--accent); font-weight: 600; min-height: 3.2rem; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: inline-block; }
 .dot.good { background: var(--good); } .dot.bad { background: var(--bad); } .dot.idle { background: var(--muted); }
+
+.badge { display: inline-block; min-width: 1.2rem; padding: 0 .35rem; margin-left: .25rem; border-radius: 99px; background: var(--warn); color: #2b1e00; font-size: .75rem; font-weight: 700; text-align: center; }

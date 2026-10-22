@@ -16,6 +16,8 @@ backend/            Flask API, SQLite, JWT
   racks.py          rack rules and statistics
   market.py         regional demand, market share, customer offers
   ai.py             rule-based AI rivals
+  staff.py          employees: hiring, admin proposals, technician work orders
+  builder.py        shared construction helpers, capacity.py sellable capacity per region
   commands.py       command registry (all player actions)
   world.py          world creation and state serialization
   routes/           HTTP blueprints (auth, worlds)
@@ -60,6 +62,14 @@ Controls: `Space` pause, `1`/`2`/`3` speed 1x/2x/5x, `Esc` back, `Del` remove
 the selected device, `M` mute. Click a mounted device to select it, drag it to
 move it.
 
+## Team
+
+Hire admins and technicians in the **Team** drawer. Admins propose racks (with an exact
+layout), new datacenters and upgrades every day; you approve, the cost is paid and a
+technician builds it over game time. Technicians also shorten failures, admins lower the
+failure chance. Higher skill gives better plans, faster work and higher salary. Salaries
+replace the old flat staff cost.
+
 ## Login
 
 By default (`DC_LOCAL_MODE` unset or `1`) there is no login: the frontend gets
@@ -81,7 +91,8 @@ endpoint returns 403 and the login/register form is shown.
 Commands: `set_speed`, `rename_company`, `build_datacenter`, `buy_dc_equipment`,
 `buy_rack` (optionally `template_id`, `clone_rack_id`, `slot`), `install_item`,
 `move_item`, `remove_item`, `sell_rack`, `rename_rack`, `repair_rack`,
-`save_template`, `delete_template`, `accept_contract`, `cancel_contract`.
+`save_template`, `delete_template`, `accept_contract`, `cancel_contract`,
+`hire_candidate`, `fire_employee`, `approve_proposal`, `reject_proposal`.
 Every command is validated server side and written to `command_log`.
 
 ## Notes

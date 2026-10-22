@@ -5,8 +5,10 @@ import time
 
 import ai
 import market
+from capacity import region_capacity
 import racks as rk
 import sim
+import staff
 from data import game_config as cfg
 from data.world_seed import AI_RIVALS, REGIONS
 
@@ -51,6 +53,7 @@ def create_world(db, user_id, world_name, company_name, ai_count):
                 db.execute("INSERT INTO market_share (world_id, region_id, company_id, share) VALUES (?, ?, ?, 0)",
                            (world_id, r["id"], cid))
         market.compute_market(db, world_id, 0, persist=True)
+        staff.ensure_candidates(db, company_ids[0], 0, rng)
         db.execute("COMMIT")
     except Exception:
         db.execute("ROLLBACK")
@@ -132,33 +135,6 @@ def _contract_json(c):
     }
 
 
-def region_capacity(dcs, contracts):
-    """Sellable capacity per region: total (online racks x performance), sold and free per resource."""
-    keys = ("cpu", "storage_tb", "gpu")
-    cap = {}
-    for dc in dcs:
-        c = cap.setdefault(dc["region_id"], {k: {"total": 0.0, "sold": 0.0, "red_total": 0.0, "red_sold": 0.0} for k in keys})
-        for rack in dc["racks"]:
-            if not rack["online"]:
-                continue
-            for k in keys:
-                c[k]["total"] += rack["stats"][k] * dc["perf"]
-                if rack["stats"]["redundant"]:
-                    c[k]["red_total"] += rack["stats"][k] * dc["perf"]
-    for ct in contracts:
-        c = cap.get(ct["region_id"])
-        if c is None:
-            continue
-        c[ct["resource"]]["sold"] += ct["units"]
-        if ct["premium"]:
-            c[ct["resource"]]["red_sold"] += ct["units"]
-    return {
-        rid: {k: {"total": v["total"], "sold": v["sold"], "free": v["total"] - v["sold"],
-                  "red_free": min(v["total"] - v["sold"], v["red_total"] - v["red_sold"])} for k, v in c.items()}
-        for rid, c in cap.items()
-    }
-
-
 def world_state(db, world, company, since_event=None):
     """Full state snapshot for the client of `company`."""
     wid, tick = world["id"], world["tick"]
@@ -217,7 +193,7 @@ def world_state(db, world, company, since_event=None):
             # Last settled tick split by category (negative = cost), shown in the HUD.
             "breakdown": {r["category"]: r["s"] for r in db.execute(
                 "SELECT category, SUM(amount_cents) AS s FROM ledger WHERE company_id = ? AND tick = ?"
-                " AND category IN ('revenue', 'power', 'rent', 'staff') GROUP BY category", (company["id"], tick))},
+                " AND category IN ('revenue', 'power', 'rent', 'staff', 'salary') GROUP BY category", (company["id"], tick))},
         },
         "rivals": rivals,
         "regions": [
@@ -248,6 +224,7 @@ def world_state(db, world, company, since_event=None):
             for dc in dcs
         ],
         "capacity": region_capacity(dcs, own),
+        "team": staff.team_state(db, company, tick),
         "contracts": [_contract_json(c) for c in own],
         "offers": [_contract_json(c) for c in offers],
         "market_share": [{"region_id": s["region_id"], "company_id": s["company_id"], "share": s["share"]}

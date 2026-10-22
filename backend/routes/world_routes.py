@@ -2,6 +2,7 @@ from flask import Blueprint, g, jsonify, request
 
 from auth import login_required
 from clock import catch_up
+import staff
 from commands import execute_command
 from data.game_config import MAX_AI_RIVALS, NAME_MAX
 from db import get_db
@@ -54,6 +55,7 @@ def _load(world_id):
         # Same answer for "does not exist" and "not yours".
         return None, None, (jsonify(error="World not found"), 404)
     world = catch_up(db, world_id)
+    staff.ensure_candidates_tx(db, company["id"], world["tick"])
     # Re-read: catch-up may have changed company data in later phases.
     company = get_user_company(db, world_id, g.user_id)
     return world, company, None

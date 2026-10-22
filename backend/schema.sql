@@ -229,3 +229,65 @@ CREATE TABLE IF NOT EXISTS command_log (
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_cmdlog_world ON command_log(world_id, id);
+
+-- ---------------------------------------------------------------- staff (added without a schema bump: new tables only)
+CREATE TABLE IF NOT EXISTS employees (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id            INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name                  TEXT NOT NULL,
+    role                  TEXT NOT NULL,                 -- technician | admin
+    skill                 INTEGER NOT NULL DEFAULT 1,    -- 1..5
+    xp                    INTEGER NOT NULL DEFAULT 0,
+    salary_cents_per_tick INTEGER NOT NULL,
+    hired_tick            INTEGER NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'idle',  -- idle | working
+    order_id              INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_employees_company ON employees(company_id);
+
+-- Job market: people the company could hire.
+CREATE TABLE IF NOT EXISTS candidates (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id            INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name                  TEXT NOT NULL,
+    role                  TEXT NOT NULL,
+    skill                 INTEGER NOT NULL,
+    salary_cents_per_tick INTEGER NOT NULL,
+    hire_cost_cents       INTEGER NOT NULL,
+    expires_tick          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_candidates_company ON candidates(company_id);
+
+-- Plans suggested by admins; the player approves or rejects them.
+CREATE TABLE IF NOT EXISTS proposals (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    admin_id     INTEGER,
+    kind         TEXT NOT NULL,                          -- new_rack | new_datacenter | upgrade
+    title        TEXT NOT NULL,
+    plan_json    TEXT NOT NULL,
+    summary_json TEXT NOT NULL,                          -- human readable preview for the client
+    cost_cents   INTEGER NOT NULL,
+    est_ticks    INTEGER NOT NULL,
+    created_tick INTEGER NOT NULL,
+    expires_tick INTEGER NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'open'            -- open | approved | rejected | expired
+);
+CREATE INDEX IF NOT EXISTS idx_proposals_company ON proposals(company_id, status);
+
+-- Approved plans waiting for or being worked on by a technician.
+CREATE TABLE IF NOT EXISTS work_orders (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    proposal_id  INTEGER,
+    kind         TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    plan_json    TEXT NOT NULL,
+    cost_cents   INTEGER NOT NULL,                       -- already paid, refunded if the plan fails
+    total_ticks  REAL NOT NULL,
+    progress     REAL NOT NULL DEFAULT 0,
+    status       TEXT NOT NULL DEFAULT 'queued',         -- queued | in_progress | done | failed
+    employee_id  INTEGER,
+    created_tick INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_orders_company ON work_orders(company_id, status);

@@ -11,6 +11,7 @@ import random
 import ai
 import market
 import racks as rk
+import staff
 from bookkeeping import add_event, book, change_cash
 from data import game_config as cfg
 
@@ -200,7 +201,7 @@ def evaluate(db, world_id, company_id, tick, dcs, region_events, allow_trip):
 
 # ---------------------------------------------------------------- incidents and events
 
-def roll_incidents(db, world_id, company_id, tick, rng, dcs):
+def roll_incidents(db, world_id, company_id, tick, rng, dcs, fx):
     """Random equipment failures. Redundant hardware absorbs them."""
     for dc in dcs:
         for rack in dc["racks"]:
@@ -212,14 +213,14 @@ def roll_incidents(db, world_id, company_id, tick, rng, dcs):
                 ("switch_failure", cfg.P_SWITCH_FAILURE, stats["net_redundant"], "Switch failure"),
                 ("cable_fault", cfg.P_CABLE_FAULT * stats["incident_mult"], stats["net_redundant"], "Cable fault"),
             ):
-                if rng.random() >= p:
+                if rng.random() >= p * fx["incident_mult"]:
                     continue
                 if absorbed:
                     add_event(db, world_id, tick, "incident_absorbed",
                               "%s on %s absorbed by redundancy" % (label, rack["name"]),
                               company_id=company_id, region_id=dc["region_id"])
                     continue
-                until = tick + rng.randint(*cfg.INCIDENT_DURATION_TICKS)
+                until = tick + max(1, round(rng.randint(*cfg.INCIDENT_DURATION_TICKS) * fx["repair_factor"]))
                 rack["status"], rack["down_until_tick"], rack["down_reason"] = "down", until, kind
                 db.execute("UPDATE racks SET status='down', down_until_tick=?, down_reason=? WHERE id=?",
                            (until, kind, rack["id"]))
@@ -339,10 +340,11 @@ def refresh_company(db, world, company_id, tick):
 
 
 def _run_company_tick(db, world, company, tick, rng, dcs, region_events):
-    roll_incidents(db, world["id"], company["id"], tick, rng, dcs)
+    roll_incidents(db, world["id"], company["id"], tick, rng, dcs, staff.effects(db, company["id"]))
     ev = evaluate(db, world["id"], company["id"], tick, dcs, region_events, allow_trip=True)
     revenue = settle_contracts(db, world["id"], company, tick, ev, dcs)
-    expenses = {"power": ev["energy_cents"], "rent": ev["rent_cents"], "staff": ev["staff_cents"]}
+    staff.process_orders(db, world, company, tick)
+    expenses = {"power": ev["energy_cents"], "rent": ev["rent_cents"], "salary": staff.salary_total(db, company["id"])}
     book(db, world["id"], company["id"], tick, "revenue", revenue, "Customer contracts")
     for category, cents in expenses.items():
         book(db, world["id"], company["id"], tick, category, -cents)
@@ -368,6 +370,8 @@ def tick_world(db, world, tick):
         info = market.compute_market(db, wid, tick, persist=False)
         market.generate_offers(db, world, tick, rng, human_regions, info)
         ai.run_ai_day(db, world, tick, rng)
+        for company in humans:
+            staff.daily(db, world, company, tick, rng)
         market.compute_market(db, wid, tick, persist=True)
         db.execute("DELETE FROM ledger WHERE world_id = ? AND tick < ?", (wid, tick - cfg.LEDGER_KEEP_TICKS))
         db.execute("DELETE FROM events WHERE world_id = ? AND tick < ? AND (ends_tick IS NULL OR ends_tick < ?)",

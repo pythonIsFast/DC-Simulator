@@ -73,6 +73,9 @@ export function renderHud() {
   netEl.textContent = `${signedMoney(net)}/h`;
   netEl.className = net >= 0 ? "good" : "bad";
   $("date").textContent = dateText(s.world.tick);
+  const plans = s.team ? s.team.proposals.length : 0;
+  $("team-badge").textContent = plans;
+  $("team-badge").hidden = plans === 0;
   document.querySelectorAll("#speed-buttons button").forEach((b) => {
     b.classList.toggle("active", Number(b.dataset.speed) === s.world.speed);
   });

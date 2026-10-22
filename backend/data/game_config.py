@@ -46,7 +46,7 @@ POWER_SPIKE_FACTOR = 1.5
 
 # --- Running costs (cents per tick) ---
 DC_RENT_CENTS_PER_TICK = 450          # multiplied by land cost index
-STAFF_CENTS_PER_RACK_TICK = 60
+STAFF_CENTS_PER_RACK_TICK = 0         # replaced by individual salaries (see staff.py)
 REPAIR_COST_CENTS = 200_00
 
 # --- Incidents (probability per rack and tick) ---
@@ -114,3 +114,24 @@ OFFER_NAMES_A = ["Blue", "Rapid", "Nimbus", "Quantum", "Pixel", "Atlas", "Nova",
                  "Orbit", "Delta", "Pioneer", "Helix", "Summit", "Zephyr"]
 OFFER_NAMES_B = ["Games", "Shop", "Media", "Bank", "Labs", "Mobility", "Health", "Analytics", "Stream",
                  "Logistics", "Robotics", "Learning", "Travel", "Foods", "Energy", "Social"]
+
+# --- Staff (technicians build approved plans and repair faster, admins plan and prevent incidents) ---
+ROLES = ("technician", "admin")
+ROLE_BASE_SALARY_CENTS = {"technician": 1_400, "admin": 2_000}   # per tick at skill 1
+SALARY_PER_SKILL = 0.3                  # salary = base * (0.7 + 0.3 * skill)
+HIRE_COST_TICKS = 40                    # signing cost = salary * this
+MAX_SKILL = 5
+XP_PER_LEVEL = 8                        # work orders / proposals needed per skill level (times current skill)
+CANDIDATE_POOL = 4
+CANDIDATE_LIFETIME_TICKS = 5 * 24
+MAX_EMPLOYEES = 30
+TECH_SPEED_PER_SKILL = 0.35             # work speed = 1 + 0.35 * (skill - 1)
+NO_TECH_REPAIR_FACTOR = 2.0             # incident duration multiplier without any technician
+ADMIN_INCIDENT_REDUCTION = 0.06         # per admin skill point, at most 60 %
+MAX_OPEN_PROPOSALS = 6
+PROPOSALS_PER_ADMIN_PER_DAY = 2
+PROPOSAL_LIFETIME_TICKS = 4 * 24
+FIRST_NAMES = ["Alex", "Maria", "Jonas", "Lena", "Tobias", "Sofia", "Daniel", "Mia", "Lukas", "Emma", "Noah", "Hannah",
+               "Felix", "Clara", "Jan", "Nina", "Paul", "Sara", "Max", "Eva"]
+LAST_NAMES = ["Becker", "Fischer", "Weber", "Hoffmann", "Keller", "Schulz", "Wagner", "Richter", "Klein", "Wolf", "Neumann",
+              "Braun", "Krueger", "Hartmann", "Lang", "Vogel", "Roth", "Frank", "Berger", "Winter"]

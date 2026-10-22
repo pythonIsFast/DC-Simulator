@@ -7,9 +7,11 @@ After a successful command the company is re-evaluated (sim.refresh_company).
 """
 import json
 
+import builder
 import market
 import racks as rk
 import sim
+import staff
 from bookkeeping import book, change_cash
 from data import game_config as cfg
 from data.hardware import DC_CATEGORIES, STARTER_DC_EQUIPMENT
@@ -101,17 +103,10 @@ def _layout_of(items):
 
 def _place_layout(db, rack_id, layout):
     """Validate and insert a template layout into an empty rack. Returns total price in cents."""
-    items, total = [], 0
-    for n, entry in enumerate(layout):
-        hw = _hw_by_code(db, entry.get("code"))
-        err = rk.placement_error(items, hw, entry.get("u_start"))
-        if err:
-            raise CommandError("Layout invalid: %s" % err)
-        cur = db.execute("INSERT INTO rack_items (rack_id, hardware_type_id, u_start) VALUES (?, ?, ?)",
-                         (rack_id, hw["id"], entry["u_start"]))
-        items.append({**hw, "id": cur.lastrowid, "u_start": entry["u_start"]})
-        total += hw["price_cents"]
-    return total
+    try:
+        return builder.place_layout(db, rack_id, layout)
+    except builder.BuildError as exc:
+        raise CommandError("Layout invalid: %s" % exc)
 
 
 # ---------------------------------------------------------------- general
@@ -154,18 +149,10 @@ def build_datacenter(db, world, company, payload):
     name = _name(payload, default="%s DC %d" % (region["name"], count + 1))
     cost = int(cfg.DC_BUILD_BASE_CENTS * region["land_cost_index"])
     _spend(db, world, company, cost, "construction", "Datacenter in " + region["name"])
-    cur = db.execute(
-        "INSERT INTO datacenters (world_id, company_id, region_id, name, power_capacity_kw, cooling_kw,"
-        " build_cost_cents, built_tick) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (world["id"], company["id"], region["id"], name, cfg.DC_BASE_POWER_KW, cfg.DC_BASE_COOLING_KW,
-         cost, world["tick"]))
-    dc_id = cur.lastrowid
-    for category, qty in STARTER_DC_EQUIPMENT.items():
-        hw = db.execute("SELECT id FROM hardware_types WHERE code = ?", (category,)).fetchone()
-        db.execute("INSERT INTO dc_equipment (datacenter_id, hardware_type_id, qty) VALUES (?, ?, ?)",
-                   (dc_id, hw["id"], qty))
-    if count == 0:
-        market.seed_offers(db, world, world["tick"], region["id"])  # customers show up immediately
+    try:
+        dc_id = builder.insert_datacenter(db, world, company["id"], region, name, cost)
+    except builder.BuildError as exc:
+        raise CommandError(str(exc))
     return {"datacenter_id": dc_id, "cost_cents": cost}
 
 
@@ -362,6 +349,41 @@ def cancel_contract(db, world, company, payload):
     db.execute("UPDATE contracts SET status = 'cancelled' WHERE id = ?", (c["id"],))
     market.compute_market(db, world["id"], world["tick"], persist=True)
     return {"penalty_cents": penalty}
+
+
+# ---------------------------------------------------------------- staff
+
+@command("hire_candidate")
+def hire_candidate(db, world, company, payload):
+    try:
+        return {"employee_id": staff.hire(db, world, company, _int(payload, "candidate_id"))}
+    except staff.StaffError as exc:
+        raise CommandError(str(exc))
+
+
+@command("fire_employee")
+def fire_employee(db, world, company, payload):
+    try:
+        return {"name": staff.fire(db, world, company, _int(payload, "employee_id"))}
+    except staff.StaffError as exc:
+        raise CommandError(str(exc))
+
+
+@command("approve_proposal")
+def approve_proposal(db, world, company, payload):
+    try:
+        return {"order_id": staff.approve(db, world, company, _int(payload, "proposal_id"))}
+    except staff.StaffError as exc:
+        raise CommandError(str(exc))
+
+
+@command("reject_proposal")
+def reject_proposal(db, world, company, payload):
+    try:
+        staff.reject(db, company, _int(payload, "proposal_id"))
+    except staff.StaffError as exc:
+        raise CommandError(str(exc))
+    return {}
 
 
 # ---------------------------------------------------------------- execution
