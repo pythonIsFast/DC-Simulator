@@ -383,6 +383,15 @@ def start_research(db, world, company, payload):
     return {}
 
 
+@command("set_admin_policy")
+def set_admin_policy(db, world, company, payload):
+    try:
+        staff.set_policy(db, company["id"], payload.get("policy"))
+    except staff.StaffError as exc:
+        raise CommandError(str(exc))
+    return {}
+
+
 @command("hire_candidate")
 def hire_candidate(db, world, company, payload):
     try:

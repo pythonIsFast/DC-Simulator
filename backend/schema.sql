@@ -313,3 +313,9 @@ CREATE TABLE IF NOT EXISTS decisions (
     result         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_decisions_company ON decisions(company_id, status);
+
+-- What the player wants from the admins (priorities, rack style, budget). Added without a schema bump.
+CREATE TABLE IF NOT EXISTS admin_policy (
+    company_id  INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+    policy_json TEXT NOT NULL
+);

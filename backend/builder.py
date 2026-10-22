@@ -86,6 +86,22 @@ def append_layout(db, rack_id, layout):
     return total
 
 
+def rebuild(db, rack_id, remove_ids, layout):
+    """Remove devices (sold back) and mount new ones. Returns the refund in cents. Raises BuildError if the rack changed."""
+    if remove_ids:
+        marks = ",".join("?" * len(remove_ids))
+        rows = db.execute("SELECT i.id, h.price_cents FROM rack_items i JOIN hardware_types h ON h.id = i.hardware_type_id"
+                          " WHERE i.rack_id = ? AND i.id IN (%s)" % marks, [rack_id, *remove_ids]).fetchall()
+        if len(rows) != len(remove_ids):
+            raise BuildError("The rack was changed in the meantime")
+        db.execute("DELETE FROM rack_items WHERE rack_id = ? AND id IN (%s)" % marks, [rack_id, *remove_ids])
+        refund = int(sum(r["price_cents"] for r in rows) * cfg.SELL_BACK_RATIO)
+    else:
+        refund = 0
+    append_layout(db, rack_id, layout)
+    return refund
+
+
 def insert_rack(db, world, dc_id, name, slot, layout):
     cur = db.execute("INSERT INTO racks (datacenter_id, name, slot, created_tick) VALUES (?, ?, ?, ?)",
                      (dc_id, name, slot, world["tick"]))

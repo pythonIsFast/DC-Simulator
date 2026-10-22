@@ -28,6 +28,7 @@ OFFLINE_TEXT = {
     "cable_fault": "Cable fault",
     "fire": "Fire damage",
     "cyber_attack": "Cyber attack",
+    "maintenance": "Maintenance work",
 }
 
 

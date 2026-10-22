@@ -129,10 +129,22 @@ MAX_EMPLOYEES = 30
 TECH_SPEED_PER_SKILL = 0.35             # work speed = 1 + 0.35 * (skill - 1)
 NO_TECH_REPAIR_FACTOR = 2.0             # incident duration multiplier without any technician
 ADMIN_INCIDENT_REDUCTION = 0.06         # per admin skill point, at most 60 %
-MAX_OPEN_PROPOSALS = 6
+MAX_OPEN_PROPOSALS = 5
 PROPOSALS_PER_ADMIN_PER_DAY = 2
 PROPOSAL_LIFETIME_TICKS = 4 * 24
 FIRST_NAMES = ["Alex", "Maria", "Jonas", "Lena", "Tobias", "Sofia", "Daniel", "Mia", "Lukas", "Emma", "Noah", "Hannah",
                "Felix", "Clara", "Jan", "Nina", "Paul", "Sara", "Max", "Eva"]
 LAST_NAMES = ["Becker", "Fischer", "Weber", "Hoffmann", "Keller", "Schulz", "Wagner", "Richter", "Klein", "Wolf", "Neumann",
               "Braun", "Krueger", "Hartmann", "Lang", "Vogel", "Roth", "Frank", "Berger", "Winter"]
+
+# --- Admin pace and build times (ticks = in-game hours) ---
+PROPOSAL_INTERVAL_TICKS = 5 * 24         # each admin suggests at most one plan every 5 days
+FIRST_PROPOSAL_DELAY_TICKS = 2 * 24      # a new admin needs two days to get going
+BUILD_TICKS_RACK_BASE = 24
+BUILD_TICKS_PER_ITEM = 1.0
+BUILD_TICKS_EXTEND_BASE = 12
+BUILD_TICKS_REBUILD_BASE = 18
+BUILD_TICKS_REBUILD_PER_ITEM = 1.5
+BUILD_TICKS_DC = 5 * 24
+BUILD_TICKS_UPGRADE = {"dc_agg": 24, "dc_agg_big": 36, "dc_crac_small": 24, "dc_crac": 36, "dc_chiller": 72, "dc_feed": 48, "dc_feed_big": 72}
+MAINTENANCE_DOWNTIME_TICKS = 6           # a rack that is rebuilt is offline for a short time

@@ -143,7 +143,7 @@ export function createPeople(scene, slotPos) {
       }
       if (e.status === "working" && e.dc_id === ctx.dcId && e.order_kind === "new_rack" && slot !== null) {
         setJob(p, "build", { ...rackFront(slot), face: -Math.PI });
-      } else if (e.status === "working" && e.dc_id === ctx.dcId && e.slot != null && (e.order_kind === "extend_rack" || e.order_kind === "add_redundancy")) {
+      } else if (e.status === "working" && e.dc_id === ctx.dcId && e.slot != null && ["extend_rack", "add_redundancy", "rebuild_rack"].includes(e.order_kind)) {
         setJob(p, "build", { ...rackFront(e.slot), face: -Math.PI });   // working on an existing rack
       } else if (e.status === "working" && e.dc_id === ctx.dcId) {
         setJob(p, "build", { x: EDGE_X, z: -1.8, face: 0 });   // datacenter equipment work near the corridor
