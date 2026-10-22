@@ -2,11 +2,12 @@
 :root {
   --bg: #080e20; --panel: rgba(14,24,52,.94); --panel2: #182650; --line: #2b3d72; --text: #f4f7ff; --muted: #b3c0de;
   --accent: #2dd4bf; --accent-text: #03231f; --good: #4ade80; --warn: #fbbf24; --bad: #fb7185;
+  --top: 64px; --top2: 100px;  /* y offsets below the top bar / breadcrumbs, overridden on small screens */
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+html, body { touch-action: manipulation; margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#scene { touch-action: none; position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 [hidden] { display: none !important; }
 h1 { font-size: 1.5rem; margin: 0 0 1rem; }
@@ -57,13 +58,13 @@ ul.plain li { padding: .4rem 0; border-bottom: 1px solid var(--line); display: f
 .tools button { background: var(--panel2); color: var(--text); font-weight: 500; border-color: var(--line); }
 .tools button.active { background: var(--accent); color: var(--accent-text); }
 
-#crumbs { position: fixed; top: 64px; left: 12px; z-index: 9; display: flex; gap: .4rem; align-items: center; }
+#crumbs { position: fixed; top: var(--top); left: 12px; z-index: 9; display: flex; gap: .4rem; align-items: center; }
 #crumbs .sep { color: var(--muted); }
 
 /* Panels */
-#context, #drawer { backdrop-filter: blur(8px); position: fixed; top: 64px; bottom: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; overflow: auto; z-index: 8; }
+#context, #drawer { backdrop-filter: blur(8px); position: fixed; top: var(--top); bottom: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; overflow: auto; z-index: 8; }
 #context { right: 12px; width: 340px; }
-#drawer { left: 12px; top: 100px; width: 400px; max-width: calc(100vw - 380px); z-index: 11; }
+#drawer { left: 12px; top: var(--top2); width: 400px; max-width: calc(100vw - 380px); z-index: 11; }
 #context:empty { display: none; }
 .stat { display: flex; justify-content: space-between; gap: .5rem; padding: .15rem 0; font-variant-numeric: tabular-nums; }
 .bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin: .15rem 0 .6rem; }
@@ -94,7 +95,7 @@ details[open] > summary { color: var(--text); }
 @keyframes pulse { 50% { transform: scale(1.7); opacity: .5; } }
 
 /* Toasts, tooltip, banner, guide */
-#toasts { position: fixed; right: 360px; top: 64px; display: flex; flex-direction: column; gap: .4rem; z-index: 30; pointer-events: none; align-items: flex-end; }
+#toasts { position: fixed; right: 360px; top: var(--top); display: flex; flex-direction: column; gap: .4rem; z-index: 30; pointer-events: none; align-items: flex-end; }
 .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: .45rem .8rem; max-width: 340px; animation: slidein .25s ease-out; }
 .toast.bad { border-left-color: var(--bad); } .toast.warn { border-left-color: var(--warn); } .toast.good { border-left-color: var(--good); }
 .toast.out { opacity: 0; transform: translateX(20px); transition: all .3s; }
@@ -106,7 +107,7 @@ details[open] > summary { color: var(--text); }
 @keyframes banner { 0% { opacity: 0; transform: translateX(-50%) scale(.6); } 12% { opacity: 1; transform: translateX(-50%) scale(1.08); }
   20% { transform: translateX(-50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-20px); } }
 canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
-#guide { font-size: 1.05rem; position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 9; width: min(520px, calc(100vw - 800px)); min-width: 300px;
+#guide { font-size: 1.05rem; position: fixed; top: var(--top); left: 50%; transform: translateX(-50%); z-index: 9; width: min(520px, calc(100vw - 800px)); min-width: 300px;
   background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: .6rem .9rem; }
 #guide b { display: block; color: var(--accent); margin-bottom: .1rem; }
 #guide .muted { display: none; }
@@ -137,3 +138,40 @@ canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
 .warnbtn { background: var(--warn) !important; color: #2b1e00 !important; animation: pulse-btn 1.2s infinite; }
 @keyframes pulse-btn { 50% { filter: brightness(1.25); } }
 .warnbtn .badge { background: #2b1e00; color: var(--warn); }
+
+/* Touch screens: bigger tap targets */
+@media (pointer: coarse) {
+  button { min-height: 40px; }
+  button.small { min-height: 34px; }
+  .item, .rackcard { padding-top: .7rem; padding-bottom: .7rem; }
+}
+
+/* Phone, portrait: two-row top bar, panels become bottom sheets */
+@media (max-width: 700px) {
+  :root { --top: 100px; --top2: 138px; }
+  #topbar { height: 92px; flex-wrap: wrap; align-content: center; gap: .3rem .8rem; padding: 0 .6rem; }
+  .money { min-width: 0; }
+  #cash { font-size: 1.2rem; }
+  .clock { gap: .5rem; font-size: .85rem; }
+  .tools { margin-left: 0; width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  .tools button { white-space: nowrap; flex: none; }
+  #context { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 42vh; }
+  #drawer { left: 8px; right: 8px; bottom: 8px; width: auto; max-width: none; }
+  #guide { left: 8px; right: 8px; transform: none; width: auto; min-width: 0; top: var(--top2); font-size: .9rem; }
+  #toasts { right: 8px; top: var(--top2); max-width: calc(100vw - 16px); }
+  .toast { max-width: calc(100vw - 16px); }
+  .tiles { grid-template-columns: 1fr 1fr; }
+  #banner { width: calc(100vw - 24px); padding: .8rem 1rem; }
+}
+
+/* Phone, landscape: little vertical space, so a slimmer bar and narrower side panels */
+@media (max-height: 500px) and (min-width: 701px) {
+  :root { --top: 52px; --top2: 86px; }
+  #topbar { height: 44px; gap: 1rem; }
+  #cash { font-size: 1.2rem; }
+  #context { width: 270px; }
+  #drawer { width: 340px; max-width: 45vw; }
+  #toasts { right: 290px; }
+  #guide { width: min(420px, calc(100vw - 640px)); min-width: 220px; font-size: .9rem; }
+  .brand { display: none; }
+}

@@ -62,11 +62,25 @@ export class Orbit {
     this.dragging = false;
     this.moved = 0;      // pixels moved during the last drag, used to tell click from drag
     this.enabled = false;
+    this.pointers = new Map(); // active pointers, used for two-finger pinch zoom
+    this.pinch = 0;
     this._down = (e) => {
       if (!this.enabled || e.button !== 0) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2) { this.dragging = false; this.pinch = this._pinchDist(); return; }
       this.dragging = true; this.moved = 0; this.lx = e.clientX; this.ly = e.clientY;
     };
     this._move = (e) => {
+      if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2) {
+        const d = this._pinchDist();
+        if (this.pinch > 0 && d > 0) {
+          this.dist = Math.min(this.maxDist, Math.max(this.minDist, this.dist * this.pinch / d));
+          this.moved += 10;
+        }
+        this.pinch = d;
+        return;
+      }
       if (!this.dragging) return;
       const dx = e.clientX - this.lx, dy = e.clientY - this.ly;
       this.lx = e.clientX; this.ly = e.clientY;
@@ -75,7 +89,7 @@ export class Orbit {
       this.vYaw = -dx * k; this.vPitch = dy * k;
       this.yaw += this.vYaw; this.pitch += this.vPitch;
     };
-    this._up = () => { this.dragging = false; };
+    this._up = (e) => { this.pointers.delete(e.pointerId); this.pinch = 0; this.dragging = false; };
     this._wheel = (e) => {
       if (!this.enabled) return;
       e.preventDefault();
@@ -84,7 +98,13 @@ export class Orbit {
     dom.addEventListener("pointerdown", this._down);
     window.addEventListener("pointermove", this._move);
     window.addEventListener("pointerup", this._up);
+    window.addEventListener("pointercancel", this._up);
     dom.addEventListener("wheel", this._wheel, { passive: false });
+  }
+
+  _pinchDist() {
+    const [a, b] = [...this.pointers.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
   get wasDrag() { return this.moved > 6; }
