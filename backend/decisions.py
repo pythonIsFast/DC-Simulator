@@ -12,10 +12,10 @@ import market
 from bookkeeping import add_event, book, change_cash
 from data import game_config as cfg
 
-CHANCE_PER_DAY = 0.22
-MIN_GAP_TICKS = 72
-FIRST_DECISION_TICK = 72
-LIFETIME_TICKS = 72
+CHANCE_PER_DAY = 0.25
+MIN_GAP_TICKS = 10 * 24        # at least 10 days between two decisions
+FIRST_DECISION_TICK = 5 * 24
+LIFETIME_TICKS = 5 * 24
 
 
 class DecisionError(Exception):

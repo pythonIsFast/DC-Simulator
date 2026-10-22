@@ -31,17 +31,18 @@ function open(d) {
   modal.replaceChildren(h("div", { class: "card" },
     h("h2", {}, d.title),
     h("p", {}, d.body),
-    h("p", { class: "muted", style: "font-size:.85rem" }, `Decide within ${left} h. Otherwise "${d.options[d.default_option].label}" happens automatically.`),
+    h("p", { class: "muted", style: "font-size:.85rem" }, `The game keeps running. Decide within ${left} h, otherwise "${d.options[d.default_option].label}" happens automatically.`),
     ...d.options.map((o, i) => h("div", { class: "item clickable", onclick: async () => {
       const res = await run("resolve_decision", { decision_id: d.id, option: i }, "click");
       if (res) showResult(res);
     } },
     h("div", { class: "title" }, h("span", {}, o.label), h("span", { class: o.cost_cents ? "" : "muted" }, o.cost_cents ? money(o.cost_cents) : "Free")),
     h("div", { class: "sub" }, o.hint, o.risk > 0 ? h("span", { class: "tag bad" }, `Risk ${Math.round(o.risk * 100)} %`) : null))),
-    h("button", { class: "secondary small", style: "margin-top:.6rem", onclick: () => { dismissed.add(d.id); close(); renderDecisions(); } }, "Decide later")));
+    h("div", { class: "row", style: "margin-top:.6rem" },
+      h("button", { class: "secondary small", onclick: () => { dismissed.add(d.id); close(); renderDecisions(); } }, "Decide later"),
+      store.state.world.speed > 0 ? h("button", { class: "secondary small", onclick: () => run("set_speed", { speed: 0 }) }, "Pause game") : null)));
   modal.hidden = false;
   sfx.alarm();
-  if (store.state.world.speed > 0) run("set_speed", { speed: 0 });   // pause so the player can think
 }
 
 export function renderDecisions() {
