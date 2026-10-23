@@ -96,6 +96,19 @@ AI_STRATEGIES = {
     "frugal": {"target_share": 0.20, "growth": 0.015, "invest_frac": 0.08, "expand_prob": 0.05},
 }
 
+# --- Company market: startups appear, rivals can be bought ---
+MAX_ACTIVE_RIVALS = 8                 # independent AI companies at the same time (founded ones included)
+P_NEW_RIVAL_PER_DAY = 0.03            # chance per in-game day that a startup is founded
+NEW_RIVAL_MIN_TICK = 24 * 14          # no startups during the first two weeks
+STARTUP_CASH_CENTS = 500_000_00
+STARTUP_START_SHARE = 0.015           # of the home region demand
+STARTUP_NAME_A = ["Nebula", "Quanta", "Stratus", "Vertex", "Helix", "Orbit", "Pylon", "Cobalt", "Zephyr", "Ionic",
+                  "Aether", "Kilo", "Tessera", "Lumio", "Strata", "Hexa"]
+STARTUP_NAME_B = ["Hosting", "Cloud", "Systems", "Data", "Net", "Compute", "Racks", "Stack", "Works", "Grid"]
+STARTUP_COLORS = ["#8b5cf6", "#14b8a6", "#ec4899", "#84cc16", "#06b6d4", "#f97316", "#a3e635", "#e879f9"]
+ACQUISITION_PREMIUM = 1.5             # price = value of the rival's served capacity * premium (its cash stays in the company)
+SUBSIDIARY_DIVIDEND_FRAC = 0.5        # share of a subsidiary's daily profit paid to its owner
+
 # --- Milestones: code -> (name, reward in cents) ---
 MILESTONES = {
     "first_datacenter": ("First datacenter built", 5_000_00),

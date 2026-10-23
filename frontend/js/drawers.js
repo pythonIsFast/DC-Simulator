@@ -97,7 +97,8 @@ const tileBox = (label, value, kind = "") => h("div", { class: "tile" }, h("div"
 
 function marketView(s) {
   const rows = [{ id: s.company.id, name: s.company.name + " (you)", color: s.company.color, worth: s.company.net_worth_cents, me: true },
-    ...s.rivals.map((r) => ({ id: r.id, name: r.name, color: r.color, worth: r.net_worth_cents }))].sort((a, b) => b.worth - a.worth);
+    // Subsidiaries are part of our own net worth, so they do not count as competitors.
+    ...s.rivals.filter((r) => r.owner_id !== s.company.id).map((r) => ({ id: r.id, name: r.name, color: r.color, worth: r.net_worth_cents }))].sort((a, b) => b.worth - a.worth);
   const rank = rows.findIndex((r) => r.me) + 1;
   const b = s.company.breakdown || {};
   const net = s.company.revenue_cents_per_tick - s.company.expense_cents_per_tick;
@@ -124,6 +125,8 @@ function marketView(s) {
   box.append(h("h3", {}, "Ranking by net worth"));
   rows.forEach((r, i) => box.append(h("div", { class: "stat" }, h("span", { style: `color:${r.me ? "var(--accent)" : r.color};font-weight:${r.me ? 700 : 400}` }, `${i + 1}. ${r.name}`), h("span", {}, money(r.worth)))));
 
+  box.append(companiesView(s));
+
   // Market share: only regions where someone has customers; the rest stays collapsed.
   const colorOf = new Map(rows.map((r) => [r.id, r.color]));
   const shareBox = h("details", {}, h("summary", {}, "Market share per region"));
@@ -141,8 +144,32 @@ function marketView(s) {
   return box;
 }
 
+// Rival companies: buy them out; owned ones keep running as subsidiaries and pay dividends.
+function companiesView(s) {
+  const box = h("div", {}, h("h3", {}, "Companies"),
+    h("p", { class: "muted", style: "font-size:.82rem;margin:0 0 .3rem" }, "Buy a rival. It keeps running as your subsidiary, keeps its own cash and pays you half of its daily profit. The price covers its customer capacity."));
+  const mine = s.rivals.filter((r) => r.owner_id === s.company.id);
+  const free = s.rivals.filter((r) => r.is_ai && r.owner_id == null).sort((a, b) => a.net_worth_cents - b.net_worth_cents);
+  mine.forEach((r) => box.append(h("div", { class: "item" },
+    h("div", { class: "title" }, h("span", { style: `color:${r.color}` }, r.name), h("span", { class: "tag ok" }, "Subsidiary")),
+    h("div", { class: "sub" }, `Worth about ${money(r.net_worth_cents)}`))));
+  free.forEach((r) => {
+    const affordable = s.company.cash_cents >= r.price_cents;
+    box.append(h("div", { class: "item" },
+      h("div", { class: "title" }, h("span", { style: `color:${r.color}` }, r.name), h("span", { class: "muted" }, money(r.net_worth_cents))),
+      h("div", { class: "row" },
+        h("span", { class: "sub", style: "flex:1" }, `Price ${money(r.price_cents)}`),
+        h("button", { class: "small", title: affordable ? "" : "Not enough cash yet", onclick: async () => {
+          if (!confirm(`Buy ${r.name} for ${money(r.price_cents)}?`)) return;
+          if (await run("acquire_rival", { rival_id: r.id }, "cash")) toast(`You bought ${r.name}.`, "good");
+        } }, "Buy"))));
+  });
+  if (!mine.length && !free.length) box.append(h("p", { class: "muted" }, "No companies to buy right now."));
+  return box;
+}
+
 const LOG_CLASS = { incident: "bad", breaker_trip: "bad", thermal_shutdown: "bad", contract_breached: "bad", grid_outage: "warn", heatwave: "warn",
-  power_spike: "warn", sla_warning: "warn", milestone: "good", contract_completed: "good", incident_absorbed: "good", rack_recovered: "good" };
+  power_spike: "warn", sla_warning: "warn", milestone: "good", rival_founded: "warn", rival_acquired: "good", contract_completed: "good", incident_absorbed: "good", rack_recovered: "good" };
 
 function logView() {
   if (!log.length) return h("p", { class: "muted" }, "Nothing happened yet.");

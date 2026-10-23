@@ -7,6 +7,7 @@ After a successful command the company is re-evaluated (sim.refresh_company).
 """
 import json
 
+import ai
 import builder
 import decisions
 import market
@@ -14,7 +15,7 @@ import racks as rk
 import research
 import sim
 import staff
-from bookkeeping import book, change_cash
+from bookkeeping import add_event, book, change_cash
 from data import game_config as cfg
 from data.hardware import DC_CATEGORIES, STARTER_DC_EQUIPMENT
 
@@ -434,6 +435,25 @@ def reject_proposal(db, world, company, payload):
     except staff.StaffError as exc:
         raise CommandError(str(exc))
     return {}
+
+
+@command("acquire_rival")
+def acquire_rival(db, world, company, payload):
+    """Buy an AI rival. It keeps running as a subsidiary (with its own cash) and pays dividends."""
+    rival_id = _int(payload, "rival_id")
+    rival = db.execute("SELECT * FROM companies WHERE id = ? AND world_id = ? AND is_ai = 1",
+                       (rival_id, world["id"])).fetchone()
+    if rival is None:
+        raise CommandError("Unknown company")
+    if db.execute("SELECT 1 FROM subsidiaries WHERE company_id = ?", (rival_id,)).fetchone():
+        raise CommandError("%s is already owned" % rival["name"])
+    price = ai.prices_by_company(db, world["id"], world["tick"]).get(rival_id, 0)
+    _spend(db, world, company, price, "acquisition", "Acquired %s" % rival["name"])
+    db.execute("INSERT INTO subsidiaries (company_id, parent_company_id, acquired_tick, price_cents) VALUES (?, ?, ?, ?)",
+               (rival_id, company["id"], world["tick"], price))
+    add_event(db, world["id"], world["tick"], "rival_acquired",
+              "%s acquired %s for %s" % (company["name"], rival["name"], _money(price)))
+    return {"rival_id": rival_id, "price_cents": price}
 
 
 # ---------------------------------------------------------------- execution

@@ -184,6 +184,6 @@ canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
 #sheet-toggle { display: none; }
 @media (max-width: 700px) {
   #sheet-toggle { display: block; position: fixed; right: 14px; bottom: calc(var(--sheet-h, 0px) + 14px); z-index: 12; min-width: 44px; }
-  #hud[hidden] #sheet-toggle { display: none; }
+  #hud[hidden] #sheet-toggle, #drawer:not([hidden]) ~ #sheet-toggle { display: none; }
   #context.collapsed { max-height: 0; padding: 0; border-width: 0; overflow: hidden; }
 }
