@@ -439,7 +439,7 @@ def reject_proposal(db, world, company, payload):
 
 @command("acquire_rival")
 def acquire_rival(db, world, company, payload):
-    """Buy an AI rival. It keeps running as a subsidiary (with its own cash) and pays dividends."""
+    """Buy an AI rival completely: its treasury comes with it, its profit is ours from now on."""
     rival_id = _int(payload, "rival_id")
     rival = db.execute("SELECT * FROM companies WHERE id = ? AND world_id = ? AND is_ai = 1",
                        (rival_id, world["id"])).fetchone()
@@ -448,7 +448,9 @@ def acquire_rival(db, world, company, payload):
     if db.execute("SELECT 1 FROM subsidiaries WHERE company_id = ?", (rival_id,)).fetchone():
         raise CommandError("%s is already owned" % rival["name"])
     price = ai.prices_by_company(db, world["id"], world["tick"]).get(rival_id, 0)
-    _spend(db, world, company, price, "acquisition", "Acquired %s" % rival["name"])
+    # The price is already net of the rival's treasury, which moves to us together with the company.
+    _spend(db, world, company, price, "acquisition", "Acquired %s (incl. treasury)" % rival["name"])
+    db.execute("UPDATE companies SET cash_cents = 0 WHERE id = ?", (rival_id,))
     db.execute("INSERT INTO subsidiaries (company_id, parent_company_id, acquired_tick, price_cents) VALUES (?, ?, ?, ?)",
                (rival_id, company["id"], world["tick"], price))
     add_event(db, world["id"], world["tick"], "rival_acquired",

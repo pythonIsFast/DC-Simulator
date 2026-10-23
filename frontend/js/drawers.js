@@ -128,11 +128,14 @@ function marketView(s) {
   box.append(companiesView(s));
 
   // Market share: only regions where someone has customers; the rest stays collapsed.
+  const ownedIds = new Set(s.rivals.filter((r) => r.owner_id === s.company.id).map((r) => r.id));
   const colorOf = new Map(rows.map((r) => [r.id, r.color]));
+  ownedIds.forEach((id) => colorOf.set(id, s.company.color));  // owned companies count as ours
   const shareBox = h("details", {}, h("summary", {}, "Market share per region"));
   for (const region of s.regions) {
     const shares = s.market_share.filter((m) => m.region_id === region.id);
-    const mine = shares.find((m) => m.company_id === s.company.id);
+    const mineShare = shares.filter((m) => m.company_id === s.company.id || ownedIds.has(m.company_id)).reduce((a, m) => a + m.share, 0);
+    const mine = mineShare > 0 ? { share: mineShare } : null;
     const bars = h("div", { style: "display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--panel2);margin:.2rem 0 .6rem" },
       shares.map((m) => h("i", { style: `width:${(m.share * 100).toFixed(1)}%;background:${colorOf.get(m.company_id)}`, title: pct(m.share, 1) })));
     shareBox.append(h("div", { class: "stat" }, h("span", {}, region.name), h("span", { class: "muted" }, mine ? "you: " + pct(mine.share, 1) : "")), bars);
@@ -147,11 +150,11 @@ function marketView(s) {
 // Rival companies: buy them out; owned ones keep running as subsidiaries and pay dividends.
 function companiesView(s) {
   const box = h("div", {}, h("h3", {}, "Companies"),
-    h("p", { class: "muted", style: "font-size:.82rem;margin:0 0 .3rem" }, "Buy a rival. It keeps running as your subsidiary, keeps its own cash and pays you half of its daily profit. The price covers its customer capacity."));
+    h("p", { class: "muted", style: "font-size:.82rem;margin:0 0 .3rem" }, "Buy a rival completely. Its treasury and customers become yours: you get its daily profit (a quarter is reinvested in its growth)."));
   const mine = s.rivals.filter((r) => r.owner_id === s.company.id);
   const free = s.rivals.filter((r) => r.is_ai && r.owner_id == null).sort((a, b) => a.net_worth_cents - b.net_worth_cents);
   mine.forEach((r) => box.append(h("div", { class: "item" },
-    h("div", { class: "title" }, h("span", { style: `color:${r.color}` }, r.name), h("span", { class: "tag ok" }, "Subsidiary")),
+    h("div", { class: "title" }, h("span", { style: `color:${r.color}` }, r.name), h("span", { class: "tag ok" }, "Owned")),
     h("div", { class: "sub" }, `Worth about ${money(r.net_worth_cents)}`))));
   free.forEach((r) => {
     const affordable = s.company.cash_cents >= r.price_cents;

@@ -106,8 +106,9 @@ STARTUP_NAME_A = ["Nebula", "Quanta", "Stratus", "Vertex", "Helix", "Orbit", "Py
                   "Aether", "Kilo", "Tessera", "Lumio", "Strata", "Hexa"]
 STARTUP_NAME_B = ["Hosting", "Cloud", "Systems", "Data", "Net", "Compute", "Racks", "Stack", "Works", "Grid"]
 STARTUP_COLORS = ["#8b5cf6", "#14b8a6", "#ec4899", "#84cc16", "#06b6d4", "#f97316", "#a3e635", "#e879f9"]
-ACQUISITION_PREMIUM = 1.5             # price = value of the rival's served capacity * premium (its cash stays in the company)
-SUBSIDIARY_DIVIDEND_FRAC = 0.5        # share of a subsidiary's daily profit paid to its owner
+ACQUISITION_PREMIUM = 2.0             # total price = (rival cash + served capacity value) * premium; its cash comes with it
+SUBSIDIARY_REINVEST_FRAC = 0.25       # share of an owned company's daily profit that is reinvested in its growth,
+                                      # the rest goes to the owner
 
 # --- Milestones: code -> (name, reward in cents) ---
 MILESTONES = {

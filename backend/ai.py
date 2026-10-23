@@ -41,11 +41,15 @@ def worth_by_company(db, world_id, tick, info=None):
 
 
 def prices_by_company(db, world_id, tick, info=None):
-    """Acquisition price per AI company. Only the capacity is paid for: the company keeps its own cash."""
+    """Net acquisition price per AI company.
+
+    The total price is premium * (cash + capacity value); the company's own cash comes with it,
+    so the buyer's net outflow is that total minus the cash.
+    """
     values = _capacity_values(db, world_id, tick, info)
     return {
-        c["id"]: int(values.get(c["id"], 0) * cfg.ACQUISITION_PREMIUM)
-        for c in db.execute("SELECT id FROM companies WHERE world_id = ? AND is_ai = 1", (world_id,))
+        c["id"]: max(0, int((c["cash_cents"] + values.get(c["id"], 0)) * cfg.ACQUISITION_PREMIUM - c["cash_cents"]))
+        for c in db.execute("SELECT id, cash_cents FROM companies WHERE world_id = ? AND is_ai = 1", (world_id,))
     }
 
 
@@ -112,20 +116,23 @@ def run_ai_day(db, world, tick, rng):
             revenue += d["ai"].get(c["id"], 0.0) * cfg.BASE_RATE_CENTS * cfg.AI_RATE_FACTOR
             cost += d["ai_cap"].get(c["id"], 0.0) * cfg.AI_COST_CENTS_PER_UNIT_TICK
         net = int((revenue - cost) * 24)
-        cash[c["id"]] += net
-        # A subsidiary pays part of its daily profit to the company that bought it.
         parent = parent_of.get(c["id"])
         if parent is not None and net > 0:
-            dividend = int(net * cfg.SUBSIDIARY_DIVIDEND_FRAC)
-            cash[c["id"]] -= dividend
-            change_cash(db, parent, dividend)
-            book(db, wid, parent, tick, "dividends", dividend, "Dividends from %s" % c["name"])
+            # Owned company: the owner gets the profit, a share is reinvested in the company's growth.
+            keep = int(net * cfg.SUBSIDIARY_REINVEST_FRAC)
+            cash[c["id"]] += keep
+            change_cash(db, parent, net - keep)
+            book(db, wid, parent, tick, "dividends", net - keep, "Profit of %s" % c["name"])
+        else:
+            cash[c["id"]] += net
 
     caps = {rid: dict(d["ai_cap"]) for rid, d in info.items()}
     order = list(rivals)
     rng.shuffle(order)
     for c in order:
         p = cfg.AI_STRATEGIES.get(c["ai_strategy"] or "balanced", cfg.AI_STRATEGIES["balanced"])
+        if c["id"] in parent_of:
+            p = {**p, "invest_frac": 1.0}  # owned companies spend their whole reinvestment share
         candidates = []
         for rid, d in info.items():
             demand = d["demand"]
