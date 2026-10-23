@@ -43,6 +43,21 @@ The SQLite database is created automatically in `backend/instance/`. If the
 schema version changes, the old database is moved to `dc.sqlite3.bak-<time>`
 and a fresh one is created (development stage, no migrations).
 
+## Android: signing key (one-time setup)
+
+Android only installs an update over an existing app if both APKs are signed with the same key.
+Without a fixed key every CI build gets a random one and the app must be uninstalled first (all saves lost).
+
+```bash
+keytool -genkeypair -keystore dc-simulator.jks -storetype PKCS12 -alias dcsimulator -keyalg RSA -keysize 2048 -validity 36500
+base64 -w0 dc-simulator.jks > dc-simulator.jks.b64     # macOS: base64 -i dc-simulator.jks
+```
+
+Then add two repository secrets (GitHub: Settings > Secrets and variables > Actions):
+`ANDROID_KEYSTORE_BASE64` (content of `dc-simulator.jks.b64`) and `ANDROID_KEY_PASSWORD` (the password you chose;
+the alias must stay `dcsimulator`). Keep the `.jks` file safe and never commit it. If it is lost, players have to
+uninstall once more. The first build with the new key still needs one uninstall.
+
 ## How to play
 
 1. Click a region on the globe and build a datacenter.

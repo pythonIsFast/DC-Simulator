@@ -18,6 +18,20 @@ android {
         }
     }
 
+    // Fixed signing key so that every new build is accepted as an update over the installed app (keeps the save games).
+    // The key is NOT in the repository: CI passes it through the environment (GitHub secrets).
+    // Without it (local builds) the default debug key is used, and such a build cannot update an install made by CI.
+    if (System.getenv("DC_KEYSTORE_PATH")) {
+        signingConfigs {
+            debug {
+                storeFile file(System.getenv("DC_KEYSTORE_PATH"))
+                storePassword System.getenv("DC_KEY_PASSWORD")
+                keyAlias "dcsimulator"
+                keyPassword System.getenv("DC_KEY_PASSWORD")
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
