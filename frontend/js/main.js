@@ -320,3 +320,14 @@ let lastFrame = performance.now();
   if (await startLocalSession()) return showWorlds();
   getToken() ? showWorlds() : showMenu("view-auth");
 })();
+
+// Phones in portrait: the context panel is a bottom sheet that can be folded away to see the 3D view.
+{
+  const sheet = $("context"), toggle = $("sheet-toggle");
+  const syncHeight = () => document.documentElement.style.setProperty("--sheet-h", sheet.offsetHeight + "px");
+  new ResizeObserver(syncHeight).observe(sheet);
+  toggle.addEventListener("click", () => {
+    const collapsed = sheet.classList.toggle("collapsed");
+    toggle.innerHTML = collapsed ? "&#9652;" : "&#9662;";
+  });
+}

@@ -136,3 +136,13 @@ export function applyEnvironment(scene) {
   }
   scene.environment = envTexture;
 }
+
+// Keep the horizontal field of view of a square viewport when the screen is narrower than tall (phones in portrait).
+export function fitCamera(camera, w, h) {
+  if (camera.userData.baseFov === undefined) camera.userData.baseFov = camera.fov;
+  const base = camera.userData.baseFov;
+  const aspect = w / h;
+  camera.aspect = aspect;
+  camera.fov = aspect < 1 ? (2 * Math.atan(Math.tan((base * Math.PI) / 360) / aspect) * 180) / Math.PI : base;
+  camera.updateProjectionMatrix();
+}

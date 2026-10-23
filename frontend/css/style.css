@@ -176,6 +176,14 @@ canvas.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
   #context { width: 270px; bottom: auto; max-height: calc(100vh - var(--top) - 12px); }
   #drawer { width: 340px; max-width: 45vw; }
   #toasts { right: 290px; }
-  #guide { width: min(420px, calc(100vw - 640px)); min-width: 220px; font-size: .9rem; }
+  #guide { top: auto; bottom: 12px; left: 12px; transform: none; width: min(300px, 35vw); min-width: 0; font-size: .85rem; }
   .brand { display: none; }
+}
+
+/* Fold button for the bottom sheet (phone, portrait only) */
+#sheet-toggle { display: none; }
+@media (max-width: 700px) {
+  #sheet-toggle { display: block; position: fixed; right: 14px; bottom: calc(var(--sheet-h, 0px) + 14px); z-index: 12; min-width: 44px; }
+  #hud[hidden] #sheet-toggle { display: none; }
+  #context.collapsed { max-height: 0; padding: 0; border-width: 0; overflow: hidden; }
 }

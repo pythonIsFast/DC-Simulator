@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { store } from "./store.js";
 import { canPlaceItems } from "./rules.js";
 import { frontTexture, railTexture, perforatedTexture, backTexture } from "./faceplates.js";
-import { applyEnvironment } from "./stage.js";
+import { applyEnvironment, fitCamera } from "./stage.js";
 
 const U_H = 0.0445;       // height of one rack unit in metres
 const Y0 = 0.09;          // bottom of U1
@@ -399,7 +399,7 @@ export function createRackView(canvas, tooltip, handlers) {
     }
   };
 
-  view.resize = (w, h) => { camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  view.resize = (w, h) => fitCamera(camera, w, h);
   view.activate = () => { view.active = true; };
   view.deactivate = () => { view.active = false; tooltip.hidden = true; clearGhost(); drag = null; };
   view.clearDrag = () => { view.dragCode = null; clearGhost(); canvas.classList.remove("dropping"); };

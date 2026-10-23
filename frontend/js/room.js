@@ -1,6 +1,6 @@
 // Datacenter room view: open racks with their real devices (instanced per hardware type), status lights, heatmap floor.
 import * as THREE from "three";
-import { Orbit, applyEnvironment } from "./stage.js";
+import { Orbit, applyEnvironment, fitCamera } from "./stage.js";
 import { perforatedTexture, frontTexture, railTexture, backTexture } from "./faceplates.js";
 import { store } from "./store.js";
 import { createPeople } from "./people.js";
@@ -314,7 +314,7 @@ export function createRoomView(canvas, tooltip, handlers) {
       }
       if (ledMesh.instanceColor) ledMesh.instanceColor.needsUpdate = true;
     },
-    resize(w, h) { camera.aspect = w / h; camera.updateProjectionMatrix(); },
+    resize(w, h) { fitCamera(camera, w, h); },
     activate() { view.active = true; orbit.enabled = true; },
     deactivate() { view.active = false; orbit.enabled = false; tooltip.hidden = true; setHover(null); },
   };

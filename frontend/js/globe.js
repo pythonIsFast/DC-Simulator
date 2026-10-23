@@ -1,6 +1,6 @@
 // 3D globe with a procedurally drawn earth (Natural Earth land polygons, public domain).
 import * as THREE from "three";
-import { Orbit } from "./stage.js";
+import { Orbit, fitCamera } from "./stage.js";
 
 export function latLonToVec3(lat, lon, r = 1) {
   const la = (lat * Math.PI) / 180, lo = (lon * Math.PI) / 180;
@@ -221,7 +221,7 @@ export function createGlobeView(canvas, labelsRoot, onPick) {
         l.ring.material.opacity = 0.9 - 0.4 * (pulse - 0.65);
       }
     },
-    resize(w, h) { camera.aspect = w / h; camera.updateProjectionMatrix(); },
+    resize(w, h) { fitCamera(camera, w, h); },
     activate() { orbit.enabled = true; labelsRoot.hidden = false; idle = 0; },
     deactivate() { orbit.enabled = false; labelsRoot.hidden = true; },
   };
