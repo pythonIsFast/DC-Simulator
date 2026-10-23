@@ -5,7 +5,7 @@ pays running costs for its capacity and invests part of its cash into more
 capacity, following its strategy. Humans have priority in the market, so
 growing players push rival shares down (see market.compute_market).
 """
-from bookkeeping import add_event, book, change_cash
+from bookkeeping import add_event
 from data import game_config as cfg
 import market
 
@@ -40,16 +40,26 @@ def worth_by_company(db, world_id, tick, info=None):
     }
 
 
-def prices_by_company(db, world_id, tick, info=None):
-    """Net acquisition price per AI company.
+def installed_units(db, world_id):
+    """Installed (abstract) capacity per AI company and region: {company_id: {region_id: units}}."""
+    out = {}
+    for r in db.execute(
+        "SELECT a.company_id, a.region_id, a.capacity FROM ai_state a JOIN companies c ON c.id = a.company_id"
+        " WHERE c.world_id = ? AND c.is_ai = 1 AND a.capacity > 0", (world_id,)):
+        out.setdefault(r["company_id"], {})[r["region_id"]] = r["capacity"]
+    return out
 
-    The total price is premium * (cash + capacity value); the company's own cash comes with it,
-    so the buyer's net outflow is that total minus the cash.
-    """
-    values = _capacity_values(db, world_id, tick, info)
+
+def acquisition_price(units_by_region):
+    """What a rival costs: its installed capacity at (new-build) capex times the premium. Its cash stays with the sellers."""
+    return int(sum(units_by_region.values()) * cfg.AI_CAPEX_CENTS_PER_UNIT * cfg.ACQUISITION_PREMIUM)
+
+
+def prices_by_company(db, world_id):
+    units = installed_units(db, world_id)
     return {
-        c["id"]: max(0, int((c["cash_cents"] + values.get(c["id"], 0)) * cfg.ACQUISITION_PREMIUM - c["cash_cents"]))
-        for c in db.execute("SELECT id, cash_cents FROM companies WHERE world_id = ? AND is_ai = 1", (world_id,))
+        c["id"]: acquisition_price(units.get(c["id"], {}))
+        for c in db.execute("SELECT id FROM companies WHERE world_id = ? AND is_ai = 1", (world_id,))
     }
 
 
@@ -65,19 +75,9 @@ def _startup_name(db, wid, rng):
     return "Nebula Hosting %d" % n
 
 
-def maybe_found_rival(db, world, tick, rng):
-    """Once per day a small startup may enter the market (only in worlds that have AI rivals)."""
+def found_rival(db, world, tick, rng):
+    """Create a small startup rival in a random region."""
     wid = world["id"]
-    if tick < cfg.NEW_RIVAL_MIN_TICK or rng.random() >= cfg.P_NEW_RIVAL_PER_DAY:
-        return
-    ai_total = db.execute("SELECT COUNT(*) FROM companies WHERE world_id = ? AND is_ai = 1", (wid,)).fetchone()[0]
-    if ai_total == 0:
-        return
-    independent = db.execute(
-        "SELECT COUNT(*) FROM companies c WHERE c.world_id = ? AND c.is_ai = 1"
-        " AND c.id NOT IN (SELECT company_id FROM subsidiaries)", (wid,)).fetchone()[0]
-    if independent >= cfg.MAX_ACTIVE_RIVALS:
-        return
     regions = db.execute("SELECT * FROM regions WHERE world_id = ? ORDER BY id", (wid,)).fetchall()
     home = rng.choices(regions, [r["demand_index"] for r in regions])[0]
     name = _startup_name(db, wid, rng)
@@ -94,6 +94,20 @@ def maybe_found_rival(db, world, tick, rng):
                    (wid, r["id"], cid))
     add_event(db, wid, tick, "rival_founded", "New competitor %s enters the market in %s" % (name, home["name"]),
               region_id=home["id"])
+    return cid
+
+
+def maybe_found_rival(db, world, tick, rng):
+    """Once per day a startup may enter the market; more likely while there are few rivals."""
+    wid = world["id"]
+    if tick < cfg.NEW_RIVAL_MIN_TICK:
+        return
+    ai_total = db.execute("SELECT COUNT(*) FROM companies WHERE world_id = ? AND is_ai = 1", (wid,)).fetchone()[0]
+    if ai_total == 0 or ai_total >= cfg.MAX_ACTIVE_RIVALS:
+        return  # worlds created without rivals stay that way (buying the last one founds a replacement at once)
+    chance = cfg.P_NEW_RIVAL_PER_DAY * (cfg.FEW_RIVALS_BOOST if ai_total < cfg.FEW_RIVALS else 1.0)
+    if rng.random() < chance:
+        found_rival(db, world, tick, rng)
 
 
 def run_ai_day(db, world, tick, rng):
@@ -105,9 +119,6 @@ def run_ai_day(db, world, tick, rng):
         return
     names = {r["id"]: r["name"] for r in db.execute("SELECT id, name FROM regions WHERE world_id = ?", (wid,))}
     cash = {c["id"]: c["cash_cents"] for c in rivals}
-    parent_of = {r["company_id"]: r["parent_company_id"] for r in db.execute(
-        "SELECT company_id, parent_company_id FROM subsidiaries WHERE company_id IN (SELECT id FROM companies WHERE world_id = ?)",
-        (wid,))}
 
     # Daily income and running costs.
     for c in rivals:
@@ -115,24 +126,13 @@ def run_ai_day(db, world, tick, rng):
         for d in info.values():
             revenue += d["ai"].get(c["id"], 0.0) * cfg.BASE_RATE_CENTS * cfg.AI_RATE_FACTOR
             cost += d["ai_cap"].get(c["id"], 0.0) * cfg.AI_COST_CENTS_PER_UNIT_TICK
-        net = int((revenue - cost) * 24)
-        parent = parent_of.get(c["id"])
-        if parent is not None and net > 0:
-            # Owned company: the owner gets the profit, a share is reinvested in the company's growth.
-            keep = int(net * cfg.SUBSIDIARY_REINVEST_FRAC)
-            cash[c["id"]] += keep
-            change_cash(db, parent, net - keep)
-            book(db, wid, parent, tick, "dividends", net - keep, "Profit of %s" % c["name"])
-        else:
-            cash[c["id"]] += net
+        cash[c["id"]] += int((revenue - cost) * 24)
 
     caps = {rid: dict(d["ai_cap"]) for rid, d in info.items()}
     order = list(rivals)
     rng.shuffle(order)
     for c in order:
         p = cfg.AI_STRATEGIES.get(c["ai_strategy"] or "balanced", cfg.AI_STRATEGIES["balanced"])
-        if c["id"] in parent_of:
-            p = {**p, "invest_frac": 1.0}  # owned companies spend their whole reinvestment share
         candidates = []
         for rid, d in info.items():
             demand = d["demand"]

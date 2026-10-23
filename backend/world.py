@@ -154,23 +154,15 @@ def world_state(db, world, company, since_event=None):
 
     companies = db.execute("SELECT * FROM companies WHERE world_id = ? ORDER BY id", (wid,)).fetchall()
     worth_of = ai.worth_by_company(db, wid, tick, info)
-    price_of = ai.prices_by_company(db, wid, tick, info)
-    parent_of = {r["company_id"]: r["parent_company_id"] for r in db.execute(
-        "SELECT s.company_id, s.parent_company_id FROM subsidiaries s JOIN companies c ON c.id = s.company_id"
-        " WHERE c.world_id = ?", (wid,))}
+    price_of = ai.prices_by_company(db, wid)
     rivals = []
-    owned_worth = 0
     for c in companies:
         if c["id"] == company["id"]:
             continue
         # Rival cash is hidden on purpose; only an approximate net worth is shown.
-        worth = worth_of.get(c["id"], 0)
-        parent = parent_of.get(c["id"])
-        if parent == company["id"]:
-            owned_worth += worth
         rivals.append({"id": c["id"], "name": c["name"], "color": c["color"], "is_ai": bool(c["is_ai"]),
-                       "net_worth_cents": worth, "owner_id": parent,
-                       "price_cents": price_of.get(c["id"], 0) if c["is_ai"] and parent is None else None})
+                       "net_worth_cents": worth_of.get(c["id"], 0),
+                       "price_cents": price_of.get(c["id"]) if c["is_ai"] else None})
 
     shares = db.execute("SELECT region_id, company_id, share FROM market_share WHERE world_id = ? AND share > 0",
                         (wid,)).fetchall()
@@ -200,7 +192,7 @@ def world_state(db, world, company, since_event=None):
         "company": {
             "id": company["id"], "name": company["name"], "color": company["color"],
             "cash_cents": company["cash_cents"], "revenue_cents_per_tick": company["last_revenue_cents"],
-            "expense_cents_per_tick": company["last_expense_cents"], "net_worth_cents": _net_worth(db, company) + owned_worth,
+            "expense_cents_per_tick": company["last_expense_cents"], "net_worth_cents": _net_worth(db, company),
             # Last settled tick split by category (negative = cost), shown in the HUD.
             "breakdown": {r["category"]: r["s"] for r in db.execute(
                 "SELECT category, SUM(amount_cents) AS s FROM ledger WHERE company_id = ? AND tick = ?"

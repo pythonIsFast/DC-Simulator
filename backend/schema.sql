@@ -319,11 +319,3 @@ CREATE TABLE IF NOT EXISTS admin_policy (
     company_id  INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
     policy_json TEXT NOT NULL
 );
-
--- AI rivals bought by a player company. They keep operating and pay dividends to the parent.
-CREATE TABLE IF NOT EXISTS subsidiaries (
-    company_id        INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
-    parent_company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    acquired_tick     INTEGER NOT NULL,
-    price_cents       INTEGER NOT NULL
-);

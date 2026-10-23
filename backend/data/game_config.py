@@ -12,7 +12,7 @@ MAX_CATCHUP_TICKS = 24 * 30
 
 # --- Start ---
 START_CASH_CENTS = 250_000_00
-AI_START_CASH_CENTS = 5_000_000_00
+AI_START_CASH_CENTS = 2_000_000_00
 MIN_AI_RIVALS = 0
 MAX_AI_RIVALS = 5
 
@@ -86,14 +86,15 @@ CANCEL_PENALTY_RATIO = 0.5            # of the contract's penalty
 
 # --- AI rivals (abstract capacity model) ---
 AI_RATE_FACTOR = 0.9
-AI_COST_CENTS_PER_UNIT_TICK = 4
+AI_COST_CENTS_PER_UNIT_TICK = 12
 AI_CAPEX_CENTS_PER_UNIT = 14_000
-AI_START_SHARE = 0.06
+AI_START_SHARE = 0.04
 AI_TOTAL_MAX_SHARE = 0.6              # AIs together never expand beyond this share of a region
 AI_STRATEGIES = {
-    "aggressive": {"target_share": 0.35, "growth": 0.04, "invest_frac": 0.25, "expand_prob": 0.25},
-    "balanced": {"target_share": 0.28, "growth": 0.025, "invest_frac": 0.15, "expand_prob": 0.12},
-    "frugal": {"target_share": 0.20, "growth": 0.015, "invest_frac": 0.08, "expand_prob": 0.05},
+    # growth = share of the regional demand a rival may add per in-game day (kept small: the player has to keep up)
+    "aggressive": {"target_share": 0.30, "growth": 0.003, "invest_frac": 0.25, "expand_prob": 0.15},
+    "balanced": {"target_share": 0.24, "growth": 0.0018, "invest_frac": 0.15, "expand_prob": 0.08},
+    "frugal": {"target_share": 0.16, "growth": 0.001, "invest_frac": 0.08, "expand_prob": 0.04},
 }
 
 # --- Company market: startups appear, rivals can be bought ---
@@ -106,9 +107,9 @@ STARTUP_NAME_A = ["Nebula", "Quanta", "Stratus", "Vertex", "Helix", "Orbit", "Py
                   "Aether", "Kilo", "Tessera", "Lumio", "Strata", "Hexa"]
 STARTUP_NAME_B = ["Hosting", "Cloud", "Systems", "Data", "Net", "Compute", "Racks", "Stack", "Works", "Grid"]
 STARTUP_COLORS = ["#8b5cf6", "#14b8a6", "#ec4899", "#84cc16", "#06b6d4", "#f97316", "#a3e635", "#e879f9"]
-ACQUISITION_PREMIUM = 2.0             # total price = (rival cash + served capacity value) * premium; its cash comes with it
-SUBSIDIARY_REINVEST_FRAC = 0.25       # share of an owned company's daily profit that is reinvested in its growth,
-                                      # the rest goes to the owner
+ACQUISITION_PREMIUM = 1.0             # price = installed capacity * AI capex * premium; the rival's cash stays with the sellers
+FEW_RIVALS = 3                        # below this many rivals new startups appear faster
+FEW_RIVALS_BOOST = 3.0
 
 # --- Milestones: code -> (name, reward in cents) ---
 MILESTONES = {

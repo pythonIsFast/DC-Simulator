@@ -6,6 +6,7 @@ with the command_log entry, so state changes and audit trail stay consistent.
 After a successful command the company is re-evaluated (sim.refresh_company).
 """
 import json
+import random
 
 import ai
 import builder
@@ -439,23 +440,26 @@ def reject_proposal(db, world, company, payload):
 
 @command("acquire_rival")
 def acquire_rival(db, world, company, payload):
-    """Buy an AI rival completely: its treasury comes with it, its profit is ours from now on."""
+    """Buy an AI rival: it disappears, its capacity becomes our own datacenters (without customers)."""
     rival_id = _int(payload, "rival_id")
     rival = db.execute("SELECT * FROM companies WHERE id = ? AND world_id = ? AND is_ai = 1",
                        (rival_id, world["id"])).fetchone()
     if rival is None:
         raise CommandError("Unknown company")
-    if db.execute("SELECT 1 FROM subsidiaries WHERE company_id = ?", (rival_id,)).fetchone():
-        raise CommandError("%s is already owned" % rival["name"])
-    price = ai.prices_by_company(db, world["id"], world["tick"]).get(rival_id, 0)
-    # The price is already net of the rival's treasury, which moves to us together with the company.
-    _spend(db, world, company, price, "acquisition", "Acquired %s (incl. treasury)" % rival["name"])
-    db.execute("UPDATE companies SET cash_cents = 0 WHERE id = ?", (rival_id,))
-    db.execute("INSERT INTO subsidiaries (company_id, parent_company_id, acquired_tick, price_cents) VALUES (?, ?, ?, ?)",
-               (rival_id, company["id"], world["tick"], price))
+    units = ai.installed_units(db, world["id"]).get(rival_id, {})
+    price = ai.acquisition_price(units)
+    _spend(db, world, company, price, "acquisition", "Acquired %s" % rival["name"])
+    try:
+        dcs, racks = builder.take_over_capacity(db, world, company["id"], rival["name"], units)
+    except builder.BuildError as exc:
+        raise CommandError(str(exc))
     add_event(db, world["id"], world["tick"], "rival_acquired",
-              "%s acquired %s for %s" % (company["name"], rival["name"], _money(price)))
-    return {"rival_id": rival_id, "price_cents": price}
+              "%s acquired %s: %d datacenters with %d racks" % (company["name"], rival["name"], dcs, racks))
+    db.execute("DELETE FROM companies WHERE id = ?", (rival_id,))
+    if db.execute("SELECT COUNT(*) FROM companies WHERE world_id = ? AND is_ai = 1", (world["id"],)).fetchone()[0] == 0:
+        # The market never stays empty: a new competitor takes over right away.
+        ai.found_rival(db, world, world["tick"], random.Random(world["seed"] * 31 + world["tick"]))
+    return {"rival_id": rival_id, "price_cents": price, "datacenters": dcs, "racks": racks}
 
 
 # ---------------------------------------------------------------- execution

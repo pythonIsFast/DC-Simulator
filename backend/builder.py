@@ -107,3 +107,48 @@ def insert_rack(db, world, dc_id, name, slot, layout):
                      (dc_id, name, slot, world["tick"]))
     rack_id = cur.lastrowid
     return rack_id, place_layout(db, rack_id, layout)
+
+
+# --- Taking over a rival: its abstract capacity becomes real datacenters --------------------------
+# One standard rack: N+1 power, redundant ToR switches, 14 dual-socket compute servers, blanking panels.
+# Only hardware that is available without research, so the layout is always valid.
+ACQUIRED_RACK_LAYOUT = (
+    [{"code": "pdu_7k2", "u_start": 1}, {"code": "pdu_7k2", "u_start": 2},
+     {"code": "tor_24", "u_start": 3}, {"code": "tor_24", "u_start": 4}]
+    + [{"code": "cpu_2u", "u_start": 5 + 2 * i} for i in range(14)]
+    + [{"code": "blank_1u", "u_start": 33 + i} for i in range(10)]
+)
+ACQUIRED_RACK_UNITS = 14 * 44             # sellable cpu units of one standard rack (cpu weight is 1.0)
+ACQUIRED_RACKS_PER_DC = 8                 # keeps cooling, power feed and uplinks of a starter datacenter sufficient
+
+
+def take_over_capacity(db, world, company_id, rival_name, units_by_region):
+    """Create datacenters with standard racks for a rival's capacity. Returns (datacenters, racks) created.
+
+    A region whose datacenter slots are used up fills free rack slots of existing datacenters instead;
+    capacity that finds no room at all is lost.
+    """
+    made_dcs = made_racks = 0
+    for region_id, units in sorted(units_by_region.items()):
+        region = db.execute("SELECT * FROM regions WHERE id = ?", (region_id,)).fetchone()
+        racks_left = min(max(1, round(units / ACQUIRED_RACK_UNITS)), cfg.DC_MAX_PER_REGION * ACQUIRED_RACKS_PER_DC)
+        existing = db.execute("SELECT COUNT(*) FROM datacenters WHERE company_id = ? AND region_id = ?",
+                              (company_id, region_id)).fetchone()[0]
+        new_dcs = min(-(-racks_left // ACQUIRED_RACKS_PER_DC), cfg.DC_MAX_PER_REGION - existing)
+        for i in range(new_dcs):
+            name = ("%s %s" % (rival_name, region["name"]))[:cfg.NAME_MAX - 2] + ("" if new_dcs == 1 else " %d" % (i + 1))
+            dc_id = insert_datacenter(db, world, company_id, region, name, dc_cost(region))
+            made_dcs += 1
+            for n in range(min(racks_left, ACQUIRED_RACKS_PER_DC)):
+                insert_rack(db, world, dc_id, "Rack %d" % (n + 1), free_slot(db, dc_id), ACQUIRED_RACK_LAYOUT)
+                racks_left -= 1
+                made_racks += 1
+        if racks_left > 0:
+            for dc in db.execute("SELECT id FROM datacenters WHERE company_id = ? AND region_id = ? ORDER BY id",
+                                 (company_id, region_id)).fetchall():
+                while racks_left > 0 and free_slot(db, dc["id"]) is not None:
+                    slot = free_slot(db, dc["id"])
+                    insert_rack(db, world, dc["id"], "Rack %d" % (slot + 1), slot, ACQUIRED_RACK_LAYOUT)
+                    racks_left -= 1
+                    made_racks += 1
+    return made_dcs, made_racks
