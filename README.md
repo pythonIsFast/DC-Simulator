@@ -58,6 +58,13 @@ Then add two repository secrets (GitHub: Settings > Secrets and variables > Acti
 the alias must stay `dcsimulator`). Keep the `.jks` file safe and never commit it. If it is lost, players have to
 uninstall once more. The first build with the new key still needs one uninstall.
 
+## Cloud save (PC and phone, no own server)
+
+In the world menu, "Cloud save" stores the whole local database in a private GitHub gist of your account.
+Create a classic personal access token with only the `gist` scope (github.com/settings/tokens/new), paste it on
+every device, then use Upload / Download. Download replaces the saves on that device (a `.bak-<time>` copy of the
+old database file is kept next to it). Only available in local mode; the token is stored in `instance/cloud.json`.
+
 ## How to play
 
 1. Click a region on the globe and build a datacenter.

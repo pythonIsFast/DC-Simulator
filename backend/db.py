@@ -64,6 +64,13 @@ def seed_hardware(conn):
         )
 
 
+def apply_schema(conn):
+    """Create missing tables and refresh the hardware catalog (also after a cloud save was restored)."""
+    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
+        conn.executescript(f.read())
+    seed_hardware(conn)
+
+
 def init_db(app):
     """Create the database file and all tables (idempotent) and seed the catalog."""
     path = app.config["DATABASE"]
@@ -71,9 +78,7 @@ def init_db(app):
     _backup_if_outdated(path)
     conn = _connect(path)
     try:
-        with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-            conn.executescript(f.read())
-        seed_hardware(conn)
+        apply_schema(conn)
     finally:
         conn.close()
     app.teardown_appcontext(close_db)

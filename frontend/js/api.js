@@ -36,6 +36,11 @@ export const api = {
   listWorlds: () => request("GET", "/api/worlds"),
   createWorld: (name, company_name, ai_count) => request("POST", "/api/worlds", { name, company_name, ai_count }),
   hardware: () => request("GET", "/api/worlds/hardware"),
+  cloudStatus: () => request("GET", "/api/cloud/status"),
+  cloudConnect: (token) => request("POST", "/api/cloud/connect", { token }),
+  cloudDisconnect: () => request("POST", "/api/cloud/disconnect"),
+  cloudUpload: (device) => request("POST", "/api/cloud/upload", { device }),
+  cloudDownload: () => request("POST", "/api/cloud/download", {}),
   getWorld: (id, cursor) => request("GET", `/api/worlds/${id}${since(cursor)}`),
   command: (id, type, payload = {}, cursor) =>
     request("POST", `/api/worlds/${id}/commands${since(cursor)}`, { type, payload }),
