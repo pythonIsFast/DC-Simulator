@@ -24,8 +24,6 @@ def insert_datacenter(db, world, company_id, region, name, cost):
     """Create a datacenter with the starter equipment. The first one in a region also seeds customer offers."""
     count = db.execute("SELECT COUNT(*) FROM datacenters WHERE company_id = ? AND region_id = ?",
                        (company_id, region["id"])).fetchone()[0]
-    if count >= cfg.DC_MAX_PER_REGION:
-        raise BuildError("Maximum %d datacenters per region" % cfg.DC_MAX_PER_REGION)
     cur = db.execute(
         "INSERT INTO datacenters (world_id, company_id, region_id, name, power_capacity_kw, cooling_kw,"
         " build_cost_cents, built_tick) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -123,32 +121,18 @@ ACQUIRED_RACKS_PER_DC = 8                 # keeps cooling, power feed and uplink
 
 
 def take_over_capacity(db, world, company_id, rival_name, units_by_region):
-    """Create datacenters with standard racks for a rival's capacity. Returns (datacenters, racks) created.
-
-    A region whose datacenter slots are used up fills free rack slots of existing datacenters instead;
-    capacity that finds no room at all is lost.
-    """
+    """Create datacenters with standard racks for a rival's capacity. Returns (datacenters, racks) created."""
     made_dcs = made_racks = 0
     for region_id, units in sorted(units_by_region.items()):
         region = db.execute("SELECT * FROM regions WHERE id = ?", (region_id,)).fetchone()
-        racks_left = min(max(1, round(units / ACQUIRED_RACK_UNITS)), cfg.DC_MAX_PER_REGION * ACQUIRED_RACKS_PER_DC)
-        existing = db.execute("SELECT COUNT(*) FROM datacenters WHERE company_id = ? AND region_id = ?",
-                              (company_id, region_id)).fetchone()[0]
-        new_dcs = min(-(-racks_left // ACQUIRED_RACKS_PER_DC), cfg.DC_MAX_PER_REGION - existing)
+        racks_left = max(1, round(units / ACQUIRED_RACK_UNITS))
+        new_dcs = -(-racks_left // ACQUIRED_RACKS_PER_DC)
         for i in range(new_dcs):
-            name = ("%s %s" % (rival_name, region["name"]))[:cfg.NAME_MAX - 2] + ("" if new_dcs == 1 else " %d" % (i + 1))
+            name = ("%s %s" % (rival_name, region["name"]))[:cfg.NAME_MAX - 3] + ("" if new_dcs == 1 else " %d" % (i + 1))
             dc_id = insert_datacenter(db, world, company_id, region, name, dc_cost(region))
             made_dcs += 1
             for n in range(min(racks_left, ACQUIRED_RACKS_PER_DC)):
                 insert_rack(db, world, dc_id, "Rack %d" % (n + 1), free_slot(db, dc_id), ACQUIRED_RACK_LAYOUT)
                 racks_left -= 1
                 made_racks += 1
-        if racks_left > 0:
-            for dc in db.execute("SELECT id FROM datacenters WHERE company_id = ? AND region_id = ? ORDER BY id",
-                                 (company_id, region_id)).fetchall():
-                while racks_left > 0 and free_slot(db, dc["id"]) is not None:
-                    slot = free_slot(db, dc["id"])
-                    insert_rack(db, world, dc["id"], "Rack %d" % (slot + 1), slot, ACQUIRED_RACK_LAYOUT)
-                    racks_left -= 1
-                    made_racks += 1
     return made_dcs, made_racks

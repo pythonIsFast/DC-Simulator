@@ -155,8 +155,6 @@ def build_datacenter(db, world, company, payload):
         raise CommandError("Region not found")
     count = db.execute("SELECT COUNT(*) FROM datacenters WHERE company_id = ? AND region_id = ?",
                        (company["id"], region["id"])).fetchone()[0]
-    if count >= cfg.DC_MAX_PER_REGION:
-        raise CommandError("Maximum %d datacenters per region" % cfg.DC_MAX_PER_REGION)
     name = _name(payload, default="%s DC %d" % (region["name"], count + 1))
     cost = int(cfg.DC_BUILD_BASE_CENTS * region["land_cost_index"])
     _spend(db, world, company, cost, "construction", "Datacenter in " + region["name"])

@@ -716,7 +716,7 @@ def _propose_datacenter(c):
     for rid, region in regions.items():
         mine = sum(1 for dc in dcs if dc["region_id"] == rid)
         cost = builder.dc_cost(region)
-        if mine >= cfg.DC_MAX_PER_REGION or ("new_datacenter", rid) in keys or cost * 1.3 > cash or not _affordable(c, cost):
+        if ("new_datacenter", rid) in keys or cost * 1.3 > cash or not _affordable(c, cost):
             continue
         d = info[rid]
         score = (d["free"] / max(1.0, d["demand"])) * region["demand_index"] / region["land_cost_index"] * (0.5 if mine else 1.0)

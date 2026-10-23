@@ -32,7 +32,6 @@ MAX_TEMPLATES = 20
 
 # --- Datacenter ---
 DC_MAX_RACKS = 20
-DC_MAX_PER_REGION = 3
 DC_BUILD_BASE_CENTS = 60_000_00       # multiplied by the region land cost index
 DC_BASE_POWER_KW = 120
 DC_BASE_COOLING_KW = 60
