@@ -24,11 +24,11 @@ def create_app(overrides=None):
     if sim.tick_world not in clock.TICK_HANDLERS:
         clock.TICK_HANDLERS.append(sim.tick_world)
 
-    from routes import auth_routes, cloud_routes, world_routes
+    from routes import auth_routes, save_routes, world_routes
 
     app.register_blueprint(auth_routes.bp)
     app.register_blueprint(world_routes.bp)
-    app.register_blueprint(cloud_routes.bp)
+    app.register_blueprint(save_routes.bp)
 
     @app.get("/api/health")
     def health():

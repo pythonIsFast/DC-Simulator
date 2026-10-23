@@ -8,7 +8,7 @@ import { createRackView } from "./rack.js";
 import { $, h, money } from "./util.js";
 import { toast, banner, run, moneyPopup, animateMoney, renderHud, resetMoney, bumpCash } from "./ui.js";
 import { renderGuide } from "./guide.js";
-import { renderCloud } from "./cloud.js";
+import { renderTransfer } from "./transfer.js";
 import { renderDecisions, reopenDecision, resetDecisions } from "./decisions.js";
 import { renderContext, currentTemplate } from "./panels.js";
 import { toggleDrawer, addLog, resetDrawers } from "./drawers.js";
@@ -57,7 +57,7 @@ async function fail(e) {
 async function showWorlds() {
   stopPolling();
   showMenu("view-worlds");
-  renderCloud();
+  renderTransfer();
   $("who-line").hidden = localMode;
   $("who").textContent = localStorage.getItem("dc_user") || "";
   try {

@@ -65,7 +65,7 @@ def seed_hardware(conn):
 
 
 def apply_schema(conn):
-    """Create missing tables and refresh the hardware catalog (also after a cloud save was restored)."""
+    """Create missing tables and refresh the hardware catalog (also after a save file was imported)."""
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
     seed_hardware(conn)

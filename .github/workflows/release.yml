@@ -31,7 +31,7 @@ jobs:
             --add-data "frontend;frontend" \
             --hidden-import routes.auth_routes \
             --hidden-import routes.world_routes \
-            --hidden-import routes.cloud_routes \
+            --hidden-import routes.save_routes \
             --hidden-import data.game_config \
             --hidden-import data.hardware \
             --hidden-import data.research \
