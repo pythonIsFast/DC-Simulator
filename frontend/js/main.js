@@ -285,6 +285,13 @@ function startPolling() {
   }, 1500);
 }
 
+// Coming back from the background (phones): refresh at once and drop a poll that may be stuck.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !pollTimer) return;
+  syncing = false;
+  sync().catch(() => {});
+});
+
 async function openWorld(id) {
   try {
     resetStore(id);

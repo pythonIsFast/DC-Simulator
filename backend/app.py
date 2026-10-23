@@ -7,7 +7,7 @@ import sys
 import threading
 import webbrowser
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 
 import clock
 import sim
@@ -32,6 +32,13 @@ def create_app(overrides=None):
     @app.get("/api/health")
     def health():
         return jsonify(status="ok")
+
+    @app.after_request
+    def no_store_api(resp):
+        # API answers are live game state: never let a WebView or proxy reuse them.
+        if request.path.startswith("/api/"):
+            resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     @app.errorhandler(404)
     def not_found(_e):

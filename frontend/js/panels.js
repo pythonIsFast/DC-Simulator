@@ -229,6 +229,7 @@ function buildPalette(tabsBox, listBox) {
 function buildRackPanel(root, found) {
   const statsBox = h("div", {});
   const selBox = h("div", {});
+  const itemsBox = h("div", {});
   const detailsBox = h("div", {});
   const tabsBox = h("div", { class: "row", style: "margin:.4rem 0" });
   const listBox = h("div", {});
@@ -250,12 +251,12 @@ function buildRackPanel(root, found) {
       } }, "Sell rack")));
   root.replaceChildren(
     h("div", { class: "row" }, h("h2", { style: "flex:1" }, found.rack.name), h("button", { class: "secondary small", onclick: () => nav({ mode: "room", dcId }) }, "Back")),
-    statsBox, selBox,
+    statsBox, selBox, itemsBox,
     h("h3", {}, "Add equipment"),
     h("p", { class: "muted", style: "font-size:.82rem;margin:0" }, "Drag into the rack, or click to mount."),
     tabsBox, listBox, detailsBox, actions,
   );
-  rackBuilt = { rackId: found.rack.id, statsBox, selBox, detailsBox, tabsBox, listBox, researchSig: store.state.research.done.join() };
+  rackBuilt = { rackId: found.rack.id, statsBox, selBox, itemsBox, itemsSig: "", detailsBox, tabsBox, listBox, researchSig: store.state.research.done.join() };
   updateSelection();
 }
 
@@ -288,6 +289,7 @@ function updateRackStats(found) {
     check(st.tor_count > 0, st.tor_count ? `Network: ${st.tor_count} ToR switch` : "Network: add a ToR switch"),
     check(st.server_count > 0 && st.connected_ids.length === st.server_count, `Servers connected: ${st.connected_ids.length}/${st.server_count}`)));
   rackBuilt.statsBox.replaceChildren(...top);
+  updateInstalledList(rack);
 
   const det = h("details", {}, h("summary", {}, `Rack details${st.warnings.length ? ` (${st.warnings.length} notes)` : ""}`),
     stat("Heat output", kw(st.heat_w)),
@@ -297,6 +299,24 @@ function updateRackStats(found) {
   if (dc.perf < 1) det.append(h("p", { class: "warn" }, `Datacenter throttled to ${pct(dc.perf)}.`));
   rackBuilt.detailsBox.replaceChildren(det);
   keepDetails(rackBuilt.detailsBox, "rack");
+}
+
+// Touch-friendly way to take parts out again: every mounted item gets its own Remove button.
+function updateInstalledList(rack) {
+  const sig = JSON.stringify(rack.items.map((i) => [i.id, i.code, i.u_start]));
+  if (rackBuilt.itemsSig === sig) return;
+  rackBuilt.itemsSig = sig;
+  const rows = [...rack.items].sort((a, b) => b.u_start - a.u_start).map((it) => {
+    const hw = store.hw.byCode[it.code];
+    return h("div", { class: "item" },
+      h("div", { class: "title" }, h("span", {}, hw ? hw.name : it.code), h("span", { class: "muted" }, `U${it.u_start}`)),
+      h("div", { class: "row" },
+        h("span", { class: "sub", style: "flex:1" }, hw ? `Sell for ${money(hw.price_cents * store.hw.rules.sell_back_ratio)}` : ""),
+        h("button", { class: "danger small", onclick: () => bus.emit("remove", it.id) }, "Remove")));
+  });
+  rackBuilt.itemsBox.replaceChildren(rows.length
+    ? h("details", { open: "" }, h("summary", {}, `Installed equipment (${rows.length})`), ...rows)
+    : h("p", { class: "muted", style: "font-size:.82rem" }, "Nothing installed yet."));
 }
 
 function updateSelection() {

@@ -67,6 +67,7 @@ export class Orbit {
     this._down = (e) => {
       if (!this.enabled || e.button !== 0) return;
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.touch = e.pointerType === "touch";
       if (this.pointers.size === 2) { this.dragging = false; this.pinch = this._pinchDist(); return; }
       this.dragging = true; this.moved = 0; this.lx = e.clientX; this.ly = e.clientY;
     };
@@ -107,7 +108,8 @@ export class Orbit {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
-  get wasDrag() { return this.moved > 6; }
+  // Fingers jitter more than a mouse: a longer move is needed before a tap counts as a drag.
+  get wasDrag() { return this.moved > (this.touch ? 16 : 6); }
 
   update(dt) {
     if (!this.dragging) {

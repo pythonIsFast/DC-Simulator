@@ -138,7 +138,8 @@ export function createGlobeView(canvas, labelsRoot, onPick) {
       const el = document.createElement("div");
       el.className = "region-label";
       el.textContent = r.name;
-      el.addEventListener("click", () => onPick(r.id));
+      el.addEventListener("pointerdown", orbit._down);  // a drag that starts on a label still rotates the globe
+      el.addEventListener("click", () => { if (!orbit.wasDrag) onPick(r.id); });
       labelsRoot.append(el);
       const dot = new THREE.Mesh(new THREE.SphereGeometry(0.011, 12, 12), new THREE.MeshBasicMaterial({ color: 0x9fb3c8 }));
       dot.position.copy(pos);
