@@ -6,7 +6,7 @@ elapsed real time (also covers offline progress after login).
 """
 import time
 
-from data.game_config import MAX_CATCHUP_TICKS, SECONDS_PER_TICK_1X
+from data.game_config import CATCHUP_TICKS_PER_REQUEST, MAX_CATCHUP_TICKS, SECONDS_PER_TICK_1X
 
 # Simulation steps executed once per tick: callables fn(db, world_row, tick).
 # Later phases register economy, power/heat, contracts and AI here.
@@ -35,9 +35,13 @@ def catch_up(db, world_id, now=None):
             # Offline gap too long: drop the excess instead of simulating it.
             ticks = MAX_CATCHUP_TICKS
             progress = 0.0
+        # Only part of the gap is simulated now; the remaining ticks stay in tick_progress
+        # (integer part) and are simulated by the following requests.
+        run = min(ticks, CATCHUP_TICKS_PER_REQUEST)
+        progress += ticks - run
 
         tick = world["tick"]
-        for _ in range(ticks):
+        for _ in range(run):
             tick += 1
             for handler in TICK_HANDLERS:
                 handler(db, world, tick)
