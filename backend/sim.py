@@ -56,7 +56,7 @@ def load_assets(db, company_id):
             " JOIN hardware_types h ON h.id = e.hardware_type_id WHERE e.datacenter_id IN ({ph})", dc_ids):
         by_dc[row["datacenter_id"]]["equip"][row["code"]] = {
             "qty": row["qty"], "category": row["category"], "ports": row["ports"],
-            "attrs": json.loads(row["attrs_json"]),
+            "attrs": rk.parse_attrs(row["attrs_json"]),
         }
     rack_rows = [dict(r) for r in _rows_in(
         db, "SELECT * FROM racks WHERE datacenter_id IN ({ph}) ORDER BY slot, id", dc_ids)]
@@ -108,7 +108,7 @@ def evaluate(db, world_id, company_id, tick, dcs, region_events, allow_trip):
 
         online = []  # (rack, stats)
         for rack in dc["racks"]:
-            stats = rk.rack_stats(rack["items"])
+            stats = rack.get("stats") or rk.rack_stats(rack["items"])
             rack["stats"] = stats
             rack_count += 1
             max_used_u = max(max_used_u, stats["used_u"])
@@ -213,7 +213,8 @@ def roll_incidents(db, world_id, company_id, tick, rng, dcs, fx):
         for rack in dc["racks"]:
             if rack["status"] != "ok" or not rack["items"]:
                 continue
-            stats = rk.rack_stats(rack["items"])
+            # Items do not change before evaluate() runs, so its stats are reused there.
+            stats = rack["stats"] = rk.rack_stats(rack["items"])
             for kind, p, absorbed, label in (
                 ("pdu_failure", cfg.P_PDU_FAILURE, stats["power_redundant"], "PDU failure"),
                 ("switch_failure", cfg.P_SWITCH_FAILURE, stats["net_redundant"], "Switch failure"),

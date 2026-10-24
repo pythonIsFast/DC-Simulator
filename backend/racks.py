@@ -3,11 +3,19 @@
 Items are plain dicts with the keys: id, code, category, name, u_start, u_height,
 power_w, heat_w, ports, price_cents, attrs (dict).
 """
+import functools
 import json
 
 from data import game_config as cfg
 
 SERVER_PREFIX = "server_"
+
+
+# Attributes are static per hardware type. Parsing them for every item on every tick was the main
+# cost of a tick, so the parsed dicts are shared. Callers must treat them as read only.
+@functools.lru_cache(maxsize=1024)
+def parse_attrs(text):
+    return json.loads(text)
 
 
 def item_from_row(row):
@@ -16,7 +24,7 @@ def item_from_row(row):
         "id": row["id"], "rack_id": row["rack_id"], "u_start": row["u_start"], "code": row["code"],
         "category": row["category"], "name": row["name"], "u_height": row["u_height"],
         "power_w": row["power_w"], "heat_w": row["heat_w"], "ports": row["ports"],
-        "price_cents": row["price_cents"], "attrs": json.loads(row["attrs_json"]),
+        "price_cents": row["price_cents"], "attrs": parse_attrs(row["attrs_json"]),
     }
 
 
@@ -24,7 +32,7 @@ def hardware_from_row(row):
     return {
         "id": row["id"], "code": row["code"], "category": row["category"], "name": row["name"],
         "u_height": row["u_height"], "power_w": row["power_w"], "heat_w": row["heat_w"],
-        "ports": row["ports"], "price_cents": row["price_cents"], "attrs": json.loads(row["attrs_json"]),
+        "ports": row["ports"], "price_cents": row["price_cents"], "attrs": parse_attrs(row["attrs_json"]),
     }
 
 

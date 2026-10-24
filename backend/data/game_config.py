@@ -9,6 +9,9 @@ SECONDS_PER_TICK_1X = 2.0
 ALLOWED_SPEEDS = (0, 1, 2, 5)
 # Upper bound of ticks simulated in one catch-up (offline progress), 30 days.
 MAX_CATCHUP_TICKS = 24 * 30
+# Ticks simulated per request. The rest of a catch-up is carried over to the next requests,
+# so a long gap does not block a single request for tens of seconds.
+CATCHUP_TICKS_PER_REQUEST = 24
 
 # --- Start ---
 START_CASH_CENTS = 250_000_00
